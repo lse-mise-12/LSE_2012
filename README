@@ -1,1 +1,4 @@
 LSE project
+spi_mcp/ 	CAN bus driver. platform side. com spi with tigal board.
+tempSensor/	Temperature sensor driver.
+lcd_coche/	Layout for LCD
