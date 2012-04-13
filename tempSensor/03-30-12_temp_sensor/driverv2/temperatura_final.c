@@ -1,4 +1,4 @@
-//Driver SPI
+//Temperature Driver SPI
 
 #include <linux/module.h>
 #include <linux/fs.h>
@@ -123,7 +123,7 @@ ssize_t temp_read(struct file *filep, char *buf, size_t count, loff_t *f_pos) {
 	/* 1.)   Set enable bit(SSE) in register SSPCR1*/
 	//POKE32( (unsigned long)(ssp_page + SSPCR1), 0x10 );
 //	printk("");
-//	outw(0x10, SSP_PAGE + SSPCR1);
+//	outw(0x10, SSP_PAGE + SSPCR1); No funciona si se hace la suma ssp_page+sspcr1, ponemos el valor final
 	outw(0x10, 0x808A0004);
 	printk("<1> traza1.1\n");
 	/* 2.)   Write other SSP config registers(SSPCR0 & SSPCPSR)*/
@@ -131,10 +131,12 @@ ssize_t temp_read(struct file *filep, char *buf, size_t count, loff_t *f_pos) {
 	//POKE32( (unsigned long)(ssp_page + SSPCPSR), 0xFE ); 
 	outw(0x0F, SSP_PAGE);
 	printk("<1> traza1.2\n");
-//	outw(0xFE, SSP_PAGE + SSPCPSR);
+//	outw(0xFE, SSP_PAGE + SSPCPSR); 
 	outw(0xFE, )
 	
 	printk("<1> traza 2\n");
+
+
 
 	/* 3.)   Clear the enable bit(SSE) in register SSPCR1*/
 	POKE32( (unsigned long)(ssp_page + SSPCR1), 0x00 ); 
