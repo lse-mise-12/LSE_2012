@@ -123,7 +123,7 @@ ssize_t temp_read(struct file *filep, char *buf, size_t count, loff_t *f_pos) {
 	/* 1.)   Set enable bit(SSE) in register SSPCR1*/
 	//POKE32( (unsigned long)(ssp_page + SSPCR1), 0x10 );
 //	printk("");
-//	outw(0x10, SSP_PAGE + SSPCR1); No funciona si se hace la suma ssp_page+sspcr1, ponemos el valor final
+//	outw(0x10, SSP_PAGE + SSPCR1); No funciona si se hace la suma ssp_page+sspcr1, ponemos el valor final en los in/out
 	outw(0x10, 0x808A0004);
 	printk("<1> traza1.1\n");
 	/* 2.)   Write other SSP config registers(SSPCR0 & SSPCPSR)*/
