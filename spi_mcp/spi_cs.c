@@ -1,4 +1,9 @@
-//Driver SPI
+/********************************************************************************************/
+/* SPI Driver for communicating TS7400 Platform with MCP2515 at Tigal board                 */
+/********************************************************************************************/
+/********************************************************************************************/
+/* Note: SFRMOUT pin is unused for compatibility issues. Instead we are using DIO19 of GPIO */
+/********************************************************************************************/
 
 #include <linux/module.h>
 #include <linux/fs.h>
@@ -10,9 +15,9 @@
 #include <asm/hardware.h> //Included in asm/io.h
 
 #define DIO_DATA16_19 0x12000001UL	// Registros de datos de DIO16 a DIO19
-#define RXTX_FIFOSIZE 8
+#define RXTX_FIFOSIZE 8 // Las FIFO de RX y TX tienen 8 entradas de memoria (tamaño max por entrada 16 bits)
 
-//Estos define's ya me los incluye al compilarlo --> asm/hardware.h y asm/io.h
+//These define's already included at compilation time --> asm/hardware.h y asm/io.h
 //#define SSPCR0 0x808A0000 	// Control Register 0
 //#define SSPCR1 0x808A0004 	// Control Register 1
 //#define SSPDR 0x808A0008  	// Receive FIFO / Transmit FIFO Data Register
@@ -23,7 +28,7 @@
 
 MODULE_LICENSE("Dual BSD/GPL");
 
-volatile char *datos;
+volatile char *datos; // volatile keyword prevents of compiler optimizations. Use for accessing memory mapped region
 
 /* Functions: interface as files*/
 int spi_open(struct inode *inode, struct file *filp);
@@ -42,7 +47,9 @@ struct file_operations spi_fops = {
 /* Global variables */
 int spi_major = 70;
 
-
+/********************/
+/* SPI Driver Init */
+/*******************/
 int spi_init (void){
 	int result;
 
@@ -50,34 +57,26 @@ int spi_init (void){
 
 	result = register_chrdev(spi_major, "spi_if", &spi_fops);
 	if (result < 0){
-		printk("<1>Fail major number = %d\n", spi_major);
+		printk("<1>SPI Driver: Fail major number = %d\n", spi_major);
 		return result;
 	}else{
-		printk("<1>Good major number = %d\n", spi_major);		
+		printk("<1>SPI Driver: Good major number = %d\n", spi_major);		
 	}
-
-	printk("<1>Driver SPI is up!!!!!\n");
+	printk("<1>Driver SPI is up!\n");
 	return result;
 }
 
+/**********************/
+/* SPI Driver Release */
+/**********************/
 void spi_exit (void) {
 	//free major number
 	unregister_chrdev(spi_major, "spi_if");
-	//Unlock access to register
-	//release_region(REG_ADDR_PEDR, REG_NUMB);
-	printk("<1>Bye bye!\n");
+	printk("<1>SPI Driver: Exit success!\n");
 }
-
-char check_reg(int reg_add, int reg_value)
-{
-	char p_val=0;
-	p_val=inb(reg_add);
-	if(p_val!=reg_value)	return(0);
-	else return(1);
-}
-
-
+/*************************/
 /* Open device (as file) */
+/*************************/
 int spi_open(struct inode *inode, struct file *filp) {
 	
 	char sspcr1_val_set = 0x10;
@@ -85,33 +84,24 @@ int spi_open(struct inode *inode, struct file *filp) {
 	short sspcr0_val = SSPCR0_DSS_8BIT;
 	char sspcpsr_val = 0x004A;
 	short status = 0x0000;
+	volatile char *ptr;
+	char cs_off = 0xFF;
+	
 	MOD_INC_USE_COUNT;
 	printk("<1>Opening SPI interface...\n");
 
-	// SPI Interface Init Procedure	
+	// SPI Interface Init Procedure	: Set SSPCR1, SSPCR0, SSPCPSR, SSPSR, SSPIIR
 	outb(sspcr1_val_set,SSPCR1); //SOD=0, MS=0, Set SSE (enable SPI), LBM=0, RORIE=0, TIE=0, RIE=0
 	outw(sspcr0_val,SSPCR0); //SCR=0x00, SPH=0, SPO=0,FRF=00(Motorola SPI Mode),DSS = 0x7, 8-bit data frame
-	/*if(!check_reg(SSPCR0,sspcr0_val))
-	{
-		printk("<1>SPI Init failed\n");
-		MOD_DEC_USE_COUNT;
-		return(-1);
-	}*/
-	outb(sspcpsr_val,SSPCPSR); //CPSDVSR=0x4A --> 100KHz --> salen 200KHz ¿?
-	/*if(!check_reg(SSPCPSR,sspcpsr_val))
-	{
-		printk("<1>SPI Init failed\n");
-		MOD_DEC_USE_COUNT;
-		return(-1);
-	}*/
+	outb(sspcpsr_val,SSPCPSR); //CPSDVSR=0x4A --> 200KHz
 	outb(sspcr1_val_clear,SSPCR1); //Clear SSE (disable SPI)
 	outb(sspcr1_val_set,SSPCR1); //Set SSE (enable SPI)
 	
 	// comprobacion de que se han escrito correctamente los valores en los registros
+	status = inb(SSPCR1); //Read SPI Control Register 1
+	printk("<1>SPI Control Register 1 = 0x%02X\n",status);	
 	status = inw(SSPCR0); //Read SPI Control Register 0
 	printk("<1>SPI Control Register 0 = 0x%04X\n",status);	
-	status = inb(SSPCR1); //Read SPI Control Register 1
-	printk("<1>SPI Control Register 1 = 0x%02X\n",status);
 	status = inb(SSPCPSR); //Read SPI Clock Prescale Register
 	printk("<1>SPI Clock Prescale Register = 0x%02X\n",status);
 	status = inb(SSPSR); //Read SPI Status Register
@@ -120,42 +110,43 @@ int spi_open(struct inode *inode, struct file *filp) {
 	status = inb(SSPIIR); //Read SPI Interrupt Identification Register
 	status &= 0x03;
 	printk("<1>SPI Interrupt Identification Register = 0x%02X\n",status);
-
-	volatile char *ptr;
 		
 	// Registros de DIRECCIONES
 	// Comprobar disponibilidad:
 	if(check_mem_region(DIO_DATA16_19, 1)) {
-		printk("DUMB: espacio de memoria en uso: DIO_DIR815\n");
+		printk("SPI. DUMB: espacio de memoria en uso: DIO_DIR815\n");
 		return  -EBUSY;
 	}
 
 	// Tomar memoria
 	request_mem_region(DIO_DATA16_19, 1, "dumb_driver"); // Del DIO16 al DIO19
 	ptr = __ioremap(DIO_DATA16_19, 1, 0);
-	printk("dumb: ptr remap = %p\n", ptr);
+	printk("SPI: dumb: ptr remap = %p\n", ptr);
 
 	// Definir como salida el 19. Salir:
-	ptr[0] = 0x80;
+	ptr[0] = 0xF0;
 	release_mem_region(DIO_DATA16_19, 1);
-	printk("Escrito 1 en reg direcciones de 16 a 19\n");
-
+	printk("SPI: Escrito 1 en reg direcciones de 16 a 19\n");
 
 	// Registros de DATOS
 	// Comprobar disponibilidad
 	if(check_mem_region(DIO_DATA16_19, 1)) {
-		printk("DUMB: espaco de memoria en uso: DIO_DATA16_19\n");
+		printk("SPI: DUMB: espaco de memoria en uso: DIO_DATA16_19\n");
 		return -EBUSY;
 	}
 
 	// Tomar memoria
-	request_mem_region(DIO_DATA16_19, 1, "dumb_driver_1619"); // Del DIO16 al DIO19
+	request_mem_region(DIO_DATA16_19, 1, "dumb_driver_16_19"); // Del DIO16 al DIO19
 	datos = __ioremap(DIO_DATA16_19, 1, 0);
+	
+	writeb(cs_off,datos);
 
 	return 0;
 }
 
+/**************************/
 /* Close device (as file) */
+/**************************/
 int spi_release(struct inode *inode, struct file *filep) {
 	int sspcr1_val_clear = 0x00000000;
 	outl(sspcr1_val_clear,SSPCR1); //Clear SSE (disable SPI)
@@ -163,81 +154,121 @@ int spi_release(struct inode *inode, struct file *filep) {
 	release_mem_region(DIO_DATA16_19, 1); // Cierro el espacio de memoria
 
 	MOD_DEC_USE_COUNT;
-	printk("<1>Closing\n");
+	printk("<1>SPI Driver: Closing\n");
 	return 0;
 }
 
+/*****************************************/
 /* Read from device (read from register) */
+/*****************************************/
 ssize_t spi_read(struct file *filep, char *buf, size_t count, loff_t *f_pos) {
+	int bytes_read = count;
+	short data = 0x0000;
 	char rx_status = 0x00;
-	int bytes_read = 0x00000000;
-	int n_reads= 0;
-	short data=0x0000;
-	int i;
-	//printk("<1>SPI_read\n");
+	char cs_on = 0xF0;
+	char cs_off = 0xFF;
+	
+	printk("<1>SPI: Count contents = 0x%02X\n",count);
+	if(count > 3){
+		printk("<1>SPI: read instruction only permits 3 elements = 0x%02X\n",count);
+		return -1;
+	}
+	writeb(cs_on,datos);
 
-	for(i=0;i<count;i++) {
+	outw((short)*buf,SSPDR); //1-byte register
+	buf++;
+	inw(SSPDR); //Dummy Read to empty RX FIFO
+	
+	rx_status = inb(SSPSR); //Read SPI Status Register
+	rx_status &= 0x1F;
+	while(rx_status&SSPSR_BSY){
+		rx_status = inb(SSPSR); //Read SPI Status Register
+		rx_status &= 0x1F;			
+	}	
+
+	if(count==3){
+		outw((short)*buf,SSPDR); //1-byte register
+		buf++;
+		inw(SSPDR); //Dummy Read to empty RX FIFO
 		rx_status = inb(SSPSR); //Read SPI Status Register
 		rx_status &= 0x1F;
-		n_reads++;
-		printk("<1>SPI_status_read no(%d) = 0x%02X\n",n_reads,rx_status);
-		if((rx_status&0x04)==0) { // Receive FIFO is empty SSPSR_RNE
-			printk("<1>Receive FIFO is empty\n");
-			return 0;
-			}
-		else {
-			data = inw(SSPDR); //Read SPI Data Register
-			*buf = (char)(data&0x00FF);			
-			bytes_read++;
-			buf++;
-			}
-		}	
+		while(rx_status&SSPSR_BSY){
+			rx_status = inb(SSPSR); //Read SPI Status Register
+			rx_status &= 0x1F;			
+		}
+	}
+	
+	outw(0x0000,SSPDR); // Envío dummy data para generar flancos de reloj
+	inw(SSPDR); //Dummy Read to empty RX FIFO
+	rx_status = inb(SSPSR); //Read SPI Status Register
+	rx_status &= 0x1F;
+	while(rx_status&SSPSR_BSY){
+		rx_status = inb(SSPSR); //Read SPI Status Register
+		rx_status &= 0x1F;			
+	}	
+
+	writeb(cs_off,datos);
+	
+	*buf = inb(SSPDR); //Read SPI Data Register	
+	printk("<1>SPI data read = 0x%02X\n",*buf);
+
+	data = inw(SSPDR); //Read SPI Data Register	
+	printk("<1>ANOTHER SPI data read for debbuging purposes = 0x%04X\n",data);
+
 	return bytes_read;
 }
+
+
+/***************************************/
 /* Write to device (write to register) */
-
-
+/***************************************/
 ssize_t spi_write(struct file *filep, const char *buf, size_t count, loff_t *f_pos) {
 
-	int bytes_write = 0x00000000;
-	int n_reads= 0;
+	int bytes_written = 0;
 	int i = 0;
 	char array[RXTX_FIFOSIZE];
-   	//unsigned char gpiocr = 0;
-	char cs_on = 0x08;
-	char cs_off = 0x00;
+	char tx_status;
+	char cs_on = 0xF0;
+	char cs_off = 0xFF;
 	
-	printk("<1>Count contents = 0x%02X\n",count);
+	if(count > 8){
+		printk("<1>SPI: write function only permits 8 elements\n Count contents = 0x%02X\n",count);
+		return(-1);
+	}
 
-	writeb(&cs_on,datos);
+	writeb(cs_on,datos);
 
-	for(i=0;i<count;i++)
-	{
+	for(i=0;i<count;i++){
 		array[i] = inb(SSPSR); //Read SPI Status Register
 		array[i] &= 0x1F;
-		n_reads++;	
-		if((array[i]&SSPSR_TNF)==0) // Transmit FIFO is full
-		{
-			printk("<1>Transmit FIFO is full. %d bytes written\n",bytes_write);
+		if((array[i]&SSPSR_TNF)==0){ // Transmit FIFO is full
+			printk("<1>SPI: Transmit FIFO is full. %d bytes written\n",bytes_written);
 			return(0);
 		}
-		else
-		{
+		else {
 			outw((short)*buf,SSPDR); //1-byte register
-			bytes_write++;
+			inw(SSPDR); //Dummy Read to empty RX FIFO
+			tx_status = inb(SSPSR); //Read SPI Status Register
+			tx_status &= 0x1F;
+			//printk("<1>SPI: BusyBit? 0x=%02X\n", tx_status&SSPSR_BSY);			
+			while(tx_status&SSPSR_BSY){
+				tx_status = inb(SSPSR); //Read SPI Status Register
+				tx_status &= 0x1F;			
+			}
+			bytes_written++;
 			buf++;
 		}
 	}
 
-	writeb(&cs_off,*datos);
+	writeb(cs_off,datos);
 	
-	for(i=0;i<count;i++) {
-	printk("<1>SPI_status write no(%d) = 0x%02X\n",i,array[i]);
+	for(i=0;i<count;i++){
+		printk("<1>SPI Status Register at Write no.%d = 0x%02X\n",i,array[i]);
 	}
 	
-	printk("<1>no of bytes written = %d\n",bytes_write);
+	printk("<1>SPI: no of bytes written = %d\n",bytes_written);
 
-	return bytes_write;
+	return bytes_written;
 }
 
 module_init(spi_init);
