@@ -12,6 +12,7 @@ CFLAGS = -Wall -Wstrict-prototypes -Wno-trigraphs -O2 -fno-strict-aliasing -fno-
 all: 
 #	$(CC_PATH)/$(CROSS_COMPILE)gcc $(CPPFLAGS_D) $(CFLAGS_D) -c peekpoke.c -o peekpoke.o
 	$(CC_PATH)/$(CROSS_COMPILE)gcc $(CPPFLAGS_D) $(CFLAGS_D) -o temperature_driver.o -c temperature_driver.c
+	$(CC_PATH)/$(CROSS_COMPILE)gcc $(CFLAGS_D) temperatura.c -o temperatura
 #peekpoke:
 #	$(CC_PATH)/$(CROSS_COMPILE)gcc $(CPPFLAGS_D) $(CFLAGS_D) -c peekpoke.c -o peekpoke.o
 

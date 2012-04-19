@@ -43,7 +43,7 @@ struct file_operations temp_fops = {
 };
 
 /* Global variables */
-int temp_major = 74;
+int temp_major = 75;
 
 
 int temp_init (void){
@@ -83,7 +83,7 @@ char check_reg(int reg_add, int reg_value)
 /* Open device (as file) */
 int temp_open(struct inode *inode, struct file *filp) {
 	
-	MOD_INC_USE_COUNT;
+	//MOD_INC_USE_COUNT;
 	printk("<1>Initializing temp driver\n");
 	return 0;
 }
@@ -92,24 +92,24 @@ int temp_open(struct inode *inode, struct file *filp) {
 int temp_release(struct inode *inode, struct file *filep) {
 //	int sspcr1_val_clear = 0x00000000;
 //	outl(sspcr1_val_clear,SSPCR1); //Clear SSE (disable SPI)
-	MOD_DEC_USE_COUNT;
+	//MOD_DEC_USE_COUNT;
 	printk("<1>Closing temp driver\n");
 	return 0;
 }
 
 /* Read from device (read from register) */
 ssize_t temp_read(struct file *filep, char *buf, size_t count, loff_t *f_pos) {
-	unsigned long val;
+	unsigned long val; //, aux;
 	float temp;
-	volatile unsigned char *chip_select_page, *ssp_page;
+//	volatile unsigned char *chip_select_page, *ssp_page;
 	unsigned char isNegative = FALSE;
 
  	/* Lets intialize our pointers */
-	/*chip_select_page = mmap(0, getpagesize(), PROT_READ|PROT_WRITE, MAP_SHARED, fd, CHIP_SELECT_PAGE);
-	assert(chip_select_page != MAP_FAILED);
+	/*CHIP_SELECT_PAGE = mmap(0, getpagesize(), PROT_READ|PROT_WRITE, MAP_SHARED, fd, CHIP_SELECT_PAGE);
+	assert(CHIP_SELECT_PAGE != MAP_FAILED);
 
-	ssp_page = mmap(0, getpagesize(), PROT_READ|PROT_WRITE, MAP_SHARED, fd, SSP_PAGE);
-	assert(ssp_page != MAP_FAILED);
+	SSP_PAGE = mmap(0, getpagesize(), PROT_READ|PROT_WRITE, MAP_SHARED, fd, SSP_PAGE);
+	assert(SSP_PAGE != MAP_FAILED);
 */
 	/* 
 	The EP9301 Users Manual says the following algorithm must 
@@ -117,55 +117,95 @@ ssize_t temp_read(struct file *filep, char *buf, size_t count, loff_t *f_pos) {
 	http://www-s.ti.com/sc/ds/tmp124.pdf
 	*/
 	
-	ssp_page = (unsigned char)SSP_PAGE;
-	chip_select_page = (unsigned char)CHIP_SELECT_PAGE;
+	//ssp_page = (unsigned char)SSP_PAGE;
+	//chip_select_page = (unsigned char)CHIP_SELECT_PAGE;
+
+	printk("Temperature Driver addresses: SSP_PAGE(%#lx) SSPCR1(%#x)\n",SSP_PAGE, SSPCR1);  //It should work, almost until this point
 	/* 1.)   Set enable bit(SSE) in register SSPCR1*/
-	//POKE32( (unsigned long)(ssp_page + SSPCR1), 0x10 );
+	//POKE32( (unsigned long)(SSP_PAGE + SSPCR1), 0x10 );
 //	printk("");
-//	outw(0x10, SSP_PAGE + SSPCR1); No funciona si se hace la suma ssp_page+sspcr1, ponemos el valor final en los in/out
-	outw(0x10, 0x808A0004);
+	//outw(0x10, SSP_PAGE + SSPCR1);// No funciona si se hace la suma SSP_PAGE+sspcr1, ponemos el valor final en los in/out
+	// 1
+	printk("1. Temperature Driver: 0x10 to SSPCR1(%#x)\n", SSPCR1);  //It should work, almost until this point
+	outw(0x10, SSPCR1);// No funciona si se hace la suma SSP_PAGE+sspcr1, ponemos el valor final en los in/out
+//	outw(0x10, 0x808A0004);
+///////////////////////////////////////////////////////////
+//	val = inw(0x808A0004);
+//	sprintf(buf, "%#lx", val);
+//	return 4;
+///////////////////////////////////////////////////////////
 	/* 2.)   Write other SSP config registers(SSPCR0 & SSPCPSR)*/
-	//POKE32( (unsigned long)ssp_page, 0x0F ); 
-	//POKE32( (unsigned long)(ssp_page + SSPCPSR), 0xFE ); 
+	//POKE32( (unsigned long)SSP_PAGE, 0x0F ); 
+	//POKE32( (unsigned long)(SSP_PAGE + SSPCPSR), 0xFE ); 
+	// 2.A
+	printk("2. Temperature Driver: 0x0F to SSP_PAGE(%#lx)\n", SSP_PAGE);  //It should work, almost until this point
 	outw(0x0F, SSP_PAGE);
 //	outw(0xFE, SSP_PAGE + SSPCPSR); 
-	outw(0xFE, 0x808A0010);
-	
+	// 2.B
+	printk("3. Temperature Driver: 0xFE to SSPCPSR(%#x)\n", SSPCPSR);  //It should work, almost until this point
+	outw(0xFE, SSPCPSR); 
+//	outw(0xFE, 0x808A0010);
+
+//	outw(0xAA, 0x808A0010);
+/*
+	aux = inw(0x808A0010);
+	printk("<1> traza aux: aux=%lu\n",aux);	
+*/	
 
 
 
 	/* 3.)   Clear the enable bit(SSE) in register SSPCR1*/
-	//POKE32( (unsigned long)(ssp_page + SSPCR1), 0x00 ); 
-	outw(0x00, 0x808A0004);
+	//POKE32( (unsigned long)(SSP_PAGE + SSPCR1), 0x00 ); 
+	printk("4. Temperature Driver: 0x00 to SSPCR1(%#x)\n", SSPCR1);
+	//outw(0x00, 0x808A0004);
+	outw(0x00, SSPCR1);
 	//usleep(10000); //let the lines settle
 
 	/* 4.)   Set the enable bit(SSE) in register SSPCR1*/
-	//POKE32( (unsigned long)(ssp_page + SSPCR1), 0x10 ); 
-	outw(0x10, 0x808A0004);
+	//POKE32( (unsigned long)(SSP_PAGE + SSPCR1), 0x10 ); 
+	//outw(0x10, 0x808A0004);
+	printk("5. Temperature Driver: 0x10 to SSPCR1(%#x)\n", SSPCR1);
+	outw(0x10, SSPCR1);
 	/* Done with configuration now lets read the current temp...*/
 
 	//enable the chip select
-	//POKE32( (unsigned long)(chip_select_page + CHIP_SELECT_DDR), 0x04 );
-	outw(0x04, 0x808A0034);
-	//POKE32( (unsigned long)(chip_select_page + CHIP_SELECT_DATA), 0x00 );
-	outw(0x00, 0x808A0030);
+	//POKE32( (unsigned long)(CHIP_SELECT_PAGE + CHIP_SELECT_DDR), 0x04 );
+	//outw(0x04, 0x808A0034);
+	//POKE32( (unsigned long)(CHIP_SELECT_PAGE + CHIP_SELECT_DDR), 0x04 );
+	printk("6. Temperature Driver: 0x04 to CHIP_SELECT_PAGE + CHIP_SELECT_DDR (%#lx)\n", CHIP_SELECT_PAGE + CHIP_SELECT_DDR);
+	// 4.A
+	outw(0x04, CHIP_SELECT_PAGE + CHIP_SELECT_DDR);
+	// 4.B
+	printk("7. Temperature Driver: 0x00 to CHIP_SELECT_PAGE + CHIP_SELECT_DATA (%#lx)\n", CHIP_SELECT_PAGE + CHIP_SELECT_DATA);
+	outw(0x00, CHIP_SELECT_PAGE + CHIP_SELECT_DATA);
+	//outw(0x00, 0x808A0030);
 
 	//send read temp command
-	//POKE32( (unsigned long)(ssp_page + SSP_DATA), 0x8000 );
-	outw(0x8000, 0x808A0008);
+	//POKE32( (unsigned long)(SSP_PAGE + SSP_DATA), 0x8000 );
+	printk("8. Temperature Driver: 0x8000 to SSP_PAGE + SSP_DATA(%#lx)\n", SSP_PAGE + SSP_DATA);
+	//outw(0x8000, 0x808A0008);
+	// 4.C
+	outw(0x8000, SSP_PAGE + SSP_DATA);
 	//usleep(1000);
 	// while hasta que el flag de spi este correcto
 
 	//disable chip select
-	//POKE32( (unsigned long)(chip_select_page + CHIP_SELECT_DDR), 0x00 );
-	outw(0x00, 0x808A0034);
-	
+	//POKE32( (unsigned long)(CHIP_SELECT_PAGE + CHIP_SELECT_DDR), 0x00 );
+	//outw(0x00, 0x808A0034);
+	printk("9. Temperature Driver: 0x00 to CHIP_SELECT_PAGE + CHIP_SELECT_DDR (%#lx)\n", CHIP_SELECT_PAGE + CHIP_SELECT_DDR);
+	// 4.D
+	outw(0x00, CHIP_SELECT_PAGE + CHIP_SELECT_DDR);
 	//read the temp
-	//val = PEEK32( (unsigned long)(ssp_page + SSP_DATA) );
-	val = inw(0x808A0008);
-	val = 0x05;
-	printk("<1> traza 4: val=%lu\n",val);  //It should work, almost until this point
+	//val = PEEK32( (unsigned long)(SSP_PAGE + SSP_DATA) );
+	//val = inw(0x808A0008);
+	printk("Temperature Driver: SSP_PAGE + SSP_DATA(%#lx)\n", SSP_PAGE + SSP_DATA);
+	val = inw(SSP_PAGE + SSP_DATA);
+//	val = 0x05;
+	printk("<1> traza 4: val=0x%lX\n",val);  //It should work, almost until this point
+	sprintf(buf, "%lu", val);
+	return 7;
 	
+/*
 	//Lets check if the value is negative
 	if( val <= 0xFFFF && val >= 0xE487 )
 	{
@@ -210,6 +250,7 @@ ssize_t temp_read(struct file *filep, char *buf, size_t count, loff_t *f_pos) {
 //	printk("<1> temp = %f\n",temp);
 
    	return 7; //strlen(buf);
+*/
 }
 	/* Write to device (write to register) */
 ssize_t temp_write(struct file *filep, const char *buf, size_t count, loff_t *f_pos) {
