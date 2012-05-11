@@ -12,7 +12,8 @@ void mcp_init(int desc)
 	uint8_t cfg1, cfg2, cfg3;
 	
 	write(desc, &val , 1);
-	
+
+	printf("mcp_init: desc %d\n", desc);
 	//configurar velocidad
 	cfg1 = MCP_CFG1 ;
 	cfg2 = MCP_CFG2 ;
@@ -21,11 +22,17 @@ void mcp_init(int desc)
 	mcp_writeRegister(desc, MCP_CNF2, cfg2);
 	mcp_writeRegister(desc, MCP_CNF3, cfg3);
 
+	//Activamos las interrupciones
+	printf("Activacion interrupciones: desc %d, address %x, flags %d\n", desc, MCP_CANINTE, INT_RX0|INT_RX1|INT_ERR);	
+	mcp_writeRegister(desc, MCP_CANINTE, INT_RX0|INT_RX1|INT_ERR); //INT_TX0 INT_TX1 INT_TX2 INT_WAK INT_MERR
+	printf("Activacion interrupciones OK\n");
+
 	//modo de operacion LOOPBACK para recibir los mensajes que transmitimos
-	//mcp_writeRegister(desc, MCP_CANCTRL, MODE_LOOPBACK);
+	mcp_writeRegister(desc, MCP_CANCTRL, MODE_LOOPBACK);
 
 	//modo de operacion normal
-	mcp_writeRegister(desc, MCP_CANCTRL, MODE_NORMAL);
+	//mcp_writeRegister(desc, MCP_CANCTRL, MODE_NORMAL);
+	//printf("modo de operacion normal OK\n");
 }
 
 uint8_t mcp_readStatus(int desc){
@@ -37,14 +44,10 @@ uint8_t mcp_readStatus(int desc){
 
 uint8_t mcp_readRegister(int desc, uint8_t address)
 {
-	//int i;
 	char val[3];
-	//char dat[8];
 	val[0] = MCP_READ;
 	val[1] = address;
-//	write(desc, val, 2);
 	read(desc, val, 3);
-	//for(i=0;i<8;i++) printf("Dato leido %d\n",dat[i]);	
 	return val[2];
 }
 
