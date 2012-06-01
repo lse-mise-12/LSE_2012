@@ -11,6 +11,10 @@ typedef struct{
 	uint8_t  data[CAN_MAX];
 } CanMessage;
 
+char clear_interrupt(char interr);
+
+void tigal_handler(int signum);
+
 void can_send(int desc, CanMessage*);
 
 void can_receive(int desc, CanMessage*);

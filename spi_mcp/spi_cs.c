@@ -10,12 +10,24 @@
 #include <linux/init.h>
 #include <linux/ioport.h>
 #include <asm/io.h>
-
+//libreria de las interrupciones
+#include <linux/sched.h>
+#include <linux/signal.h> // ¿Necesaria?
+#include <asm/irq.h>  // ¿Necesaria?
 //Hardware register related includes
 #include <asm/hardware.h> //Included in asm/io.h
 
 #define DIO_DATA16_19 0x12000001UL	// Registros de datos de DIO16 a DIO19
 #define RXTX_FIFOSIZE 8 // Las FIFO de RX y TX tienen 8 entradas de memoria (tamaño max por entrada 16 bits)
+#define REG_ADDR_PBDR 0x80840004
+#define REG_ADDR_PBDDR 0x80840014
+#define GPIOBIntEn 0x808400B8
+#define GPIOBIntType1 0x808400AC
+#define GPIOBIntType2 0x808400B0
+#define GPIOBEOI 0x808400B4
+#define GPIOBDB 0x808400C4
+#define GPIOINTR_VECTOR 59 //GPIO COMBINED INTERRRUPT PORT A-B
+#define PORTB4_MASK 0x10
 
 //These define's already included at compilation time --> asm/hardware.h y asm/io.h
 //#define SSPCR0 0x808A0000 	// Control Register 0
@@ -26,27 +38,39 @@
 //#define SSPIIR 0x808A0014	// Interrupt identification Register/Interrupt Clear Register
 //#define IRQ_SSP 	53
 
-MODULE_LICENSE("Dual BSD/GPL");
 
-volatile char *datos; // volatile keyword prevents of compiler optimizations. Use for accessing memory mapped region
+MODULE_LICENSE("Dual BSD/GPL");
 
 /* Functions: interface as files*/
 int spi_open(struct inode *inode, struct file *filp);
 int spi_release(struct inode *inode, struct file *filep);
 ssize_t spi_read(struct file *filep, char *buf, size_t count, loff_t *f_pos);
 ssize_t spi_write(struct file *filep, const char *buf, size_t count, loff_t *f_pos);
+static int fasync_spi(int fd, struct file *filp, int on);
+void tigal_isr(int parametro1, void *parametro2, struct pt_regs *parametro3);
 
 /*Set functions as file interface (for OS)*/
 struct file_operations spi_fops = {
 	read: spi_read,
 	write: spi_write,
 	open: spi_open,
-	release: spi_release
+	release: spi_release,
+	fasync: fasync_spi
 };
 
 /* Global variables */
+volatile char *datos; // volatile keyword prevents of compiler optimizations. Use for accessing memory mapped region
+
+static struct fasync_struct *spi_fasync = NULL;
+
 int spi_major = 70;
 
+static int fasync_spi(int fd, struct file *filp, int on){
+	int retval = fasync_helper(fd, filp, on, &spi_fasync);
+	if(retval < 0)
+		return retval;
+	return 0;
+}
 /********************/
 /* SPI Driver Init */
 /*******************/
@@ -62,6 +86,10 @@ int spi_init (void){
 	}else{
 		printk("<1>SPI Driver: Good major number = %d\n", spi_major);		
 	}
+
+	//0-input  1-output
+	outb(0xEF, REG_ADDR_PBDDR); //todos los bits como salida, menos el bit B4
+
 	printk("<1>Driver SPI is up!\n");
 	return result;
 }
@@ -86,6 +114,7 @@ int spi_open(struct inode *inode, struct file *filp) {
 	short status = 0x0000;
 	volatile char *ptr;
 	char cs_off = 0xFF;
+	int irq_req_code;
 	
 	MOD_INC_USE_COUNT;
 	printk("<1>Opening SPI interface...\n");
@@ -110,7 +139,33 @@ int spi_open(struct inode *inode, struct file *filp) {
 	status = inb(SSPIIR); //Read SPI Interrupt Identification Register
 	status &= 0x03;
 	printk("<1>SPI Interrupt Identification Register = 0x%02X\n",status);
-		
+
+	// Configuracion de interrupcion proveniente de placa TIGAL
+
+	//1. Disable interrupt by writing to GPIO Interrupt Enable register.
+	outb(0x00, GPIOBIntEn);
+	//2. Set interrupt type by writing GPIOxINTTYPE1/2 register.
+	outb(0x10, GPIOBIntType1); // 0- level sentitive 1-edge sentitive
+	outb(0x00, GPIOBIntType2); //1-rising edge 0-faling edge
+	//3. Clear interrupt by writing to GPIOxEOI register.
+	outb(0x10, GPIOBEOI);
+	//habilitamos el antirebotes del puerto B4
+	//outb(0x10, GPIOBDB);
+	//Implement interrupt service routine(ISR)
+	//Register ISR
+	irq_req_code=request_irq(GPIOINTR_VECTOR, tigal_isr, SA_INTERRUPT, "tigal_isr", NULL);
+	if(irq_req_code==EINVAL){
+		printk("SPI. The requested interrupt has a number out of range, or handler is a pointer to NULL\n");
+		return irq_req_code;
+	}
+	else if(irq_req_code==EBUSY){
+		printk("SPI. There exists a registered handler for the requested interrupt\n");
+		return irq_req_code;
+	}
+	
+	//4. Enable interrupt by writing to GPIO Interrupt Enable register.
+	outb(0x10, GPIOBIntEn);
+
 	// Registros de DIRECCIONES
 	// Comprobar disponibilidad:
 	if(check_mem_region(DIO_DATA16_19, 1)) {
@@ -144,11 +199,27 @@ int spi_open(struct inode *inode, struct file *filp) {
 	return 0;
 }
 
+void tigal_isr(int parametro1, void *parametro2, struct pt_regs *parametro3) {
+	// Mandar señal SIGIO a espacio de usuario
+
+	//kill_fasync(&spi_fasync, SIGIO);
+	kill_fasync(&spi_fasync, SIGIO, POLL_IN);
+
+	// 3. Clear interrupt by writing to GPIOxEOI register.
+	outb(0x10, GPIOBEOI);
+}
+
 /**************************/
 /* Close device (as file) */
 /**************************/
 int spi_release(struct inode *inode, struct file *filep) {
 	int sspcr1_val_clear = 0x00000000;
+	//1. Disable interrupt by writing to GPIO Interrupt Enable register.
+	outb(0x00, GPIOBIntEn);
+	//liberar la interrupcion
+	fasync_spi(-1,filep,0);
+	free_irq(GPIOINTR_VECTOR, NULL);
+
 	outl(sspcr1_val_clear,SSPCR1); //Clear SSE (disable SPI)
 	
 	release_mem_region(DIO_DATA16_19, 1); // Cierro el espacio de memoria
@@ -163,7 +234,7 @@ int spi_release(struct inode *inode, struct file *filep) {
 /*****************************************/
 ssize_t spi_read(struct file *filep, char *buf, size_t count, loff_t *f_pos) {
 	int bytes_read = count;
-	short data = 0x0000;
+	//short data = 0x0000;
 	char rx_status = 0x00;
 	char cs_on = 0xF0;
 	char cs_off = 0xFF;
@@ -212,8 +283,8 @@ ssize_t spi_read(struct file *filep, char *buf, size_t count, loff_t *f_pos) {
 	*buf = inb(SSPDR); //Read SPI Data Register	
 	printk("<1>SPI data read = 0x%02X\n",*buf);
 
-	data = inw(SSPDR); //Read SPI Data Register	
-	printk("<1>ANOTHER SPI data read for debbuging purposes = 0x%04X\n",data);
+	//data = inw(SSPDR); //Read SPI Data Register	
+	//printk("<1>ANOTHER SPI data read for debbuging purposes = 0x%04X\n",data);
 
 	return bytes_read;
 }
