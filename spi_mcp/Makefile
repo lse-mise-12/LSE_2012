@@ -5,16 +5,17 @@ CPPFLAGS_D = -D__KERNEL__ -DMODULE -I/usr/local/opt/linux24/include/
 
 CFLAGS_D = -Wall -Wstrict-prototypes -Wno-trigraphs -O2 \
          -fno-strict-aliasing -fno-common -fomit-frame-pointer \
-         -mcpu=arm920t
+         -mcpu=arm920t 
 
-CFLAGS = -Wall -Wstrict-prototypes -Wno-trigraphs -O2 -fno-strict-aliasing -fno-common -fomit-frame-pointer -mcpu=arm920t
+# quitada optimizacion -O2 (para debug)
+CFLAGS = -Wall -Wstrict-prototypes -Wno-trigraphs -fno-strict-aliasing -fno-common -fomit-frame-pointer -mcpu=arm920t -Wno-format-y2k -g -pthread
 
 all: main spi
 main:
-	$(CC_PATH)/$(CROSS_COMPILE)gcc $(CFLAGS) -o main main.c mcp.c
+	$(CC_PATH)/$(CROSS_COMPILE)gcc $(CFLAGS) -o car ./car2.c ./mcp.c
 spi:
-	$(CC_PATH)/$(CROSS_COMPILE)gcc $(CPPFLAGS_D) $(CFLAGS_D) -c spi_cs.c
+	$(CC_PATH)/$(CROSS_COMPILE)gcc $(CPPFLAGS_D) $(CFLAGS_D) -c ./spi.c
 	
 clean:
-	rm -f *.o *~ core
-	rm main
+	rm -f *.o 
+	rm car

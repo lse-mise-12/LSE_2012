@@ -1,30 +1,25 @@
-
-
-
 #define MCP_SIDH        0
 #define MCP_SIDL        1
 #define MCP_EID8        2
 #define MCP_EID0        3
 
-//**CNF registers
-
-#define MCP_CFG1 (MCP_SJW | MCP_BRP)
-#define MCP_CFG2 (MCP_BLTMODE | MCP_SAM | MCP_PHSEG1 | MCP_PRSEG)
-#define MCP_CFG3 (MCP_SOF | MCP_WAKFIL | MCP_PHSEG)
-
 //CNF1
 #define MCP_SJW			0x00		//SJW= 1xTq
-#define MCP_BRP			0X01		// Prescaler = (BRP+1)*2  --Prescaler=4 -> BRP=1
+#define MCP_BRP			0X07		// Prescaler = (BRP+1)*2  --Prescaler=4 -> BRP=1
 //CNF2
 #define MCP_BLTMODE		0x80		//bit 7=1
 #define MCP_SAM			0x00		// 1 sample, bit 6=0
-#define MCP_PHSEG1		(1<<3)		//PHSEG1 = PS1 (2) - 1 =1, en el bit 3
-#define MCP_PRSEG		0X01		//PRSEG=PRSEQTQ(2)-1
+#define MCP_PHSEG1		0x10		//PHSEG1 = PS1 (2) - 1 =1, en el bit 3
+#define MCP_PRSEG		0X00		//PRSEG=PRSEQTQ(2)-1
 //CNF3
 #define MCP_PHSEG		0X02		//PHSEG2 = PS2(3)-1=2
 #define MCP_SOF			0x00
 #define MCP_WAKFIL		0x00
 
+//**CNF registers
+#define MCP_CFG1 (MCP_SJW | MCP_BRP)
+#define MCP_CFG2 (MCP_BLTMODE | MCP_SAM | MCP_PHSEG1 | MCP_PRSEG)
+#define MCP_CFG3 (MCP_SOF | MCP_WAKFIL | MCP_PHSEG)
 //*****************************//
 
 //**TXBnCTRL registers.
@@ -104,10 +99,18 @@
 #define MCP_TXB0CTRL	0x30
 #define MCP_TXB1CTRL	0x40
 #define MCP_TXB2CTRL	0x50
+#define MCP_TXB0D0	0x36
+#define MCP_TXB1D0	0x46
+#define MCP_TXB2D0	0x56
+#define MCP_TXB0SIDH	0x31
+#define MCP_TXB1SIDH	0x41
+#define MCP_TXB2SIDH	0x51
 #define MCP_RXB0CTRL	0x60
 #define MCP_RXB0SIDH	0x61
+#define MCP_RXB0DLC	0x65
 #define MCP_RXB1CTRL	0x70
 #define MCP_RXB1SIDH	0x71
+#define MCP_RXB1DLC	0x75
 
 #define INT_RX0	0x01
 #define INT_RX1	0x02
@@ -141,8 +144,7 @@
 #define MCP_RTS_TX1		0x82
 #define MCP_RTS_TX2		0x84
 #define MCP_RTS_ALL		0x87
-#define MCP_READ_RX0		0x90
-#define MCP_READ_RX1		0x94
+#define MCP_READ_RX		0x90
 #define MCP_READ_STATUS		0xA0
 #define MCP_RX_STATUS		0xB0
 #define MCP_RESET		0xC0
@@ -156,7 +158,6 @@
 #define MODE_LISTENONLY 0x60
 #define MODE_CONFIG     0x80
 #define MODE_POWERUP	0xE0
-#define MODE_MASK	0xE0
 #define ABORT_TX        0x10
 #define MODE_ONESHOT	0x08
 #define CLKOUT_ENABLE	0x04
