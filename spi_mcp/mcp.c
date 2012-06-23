@@ -13,7 +13,8 @@ void mcp_init(int desc)
 	
 	write(desc, &val , 1);
 
-	printf("mcp_init: desc %d\n", desc);
+	//printf("mcp_init: desc %d\n", desc);
+	
 	//configurar velocidad
 	cfg1 = MCP_CFG1 ;
 	cfg2 = MCP_CFG2 ;
@@ -142,6 +143,8 @@ void mcp_write_canMsg(int desc, uint8_t sidh, CanMessage* msg) // En sidh se deb
 	/*for(i=0;i<7;i++) {
 		printf("Dato enviado data[%d]= %02X\n",i , msg->data[i]);
 	}*/
+	fprintf(stderr,"SENT from 0x%02X: PIC: 0x%02X TYPE: 0x%02X SN: 0x%02X VAR: 0x%02X MSB: 0x%02X LSB: 0x%02X\n",msg->data[6],msg->id,msg->data[5],
+								msg->data[4],msg->data[3],msg->data[2],msg->data[1]);
 }
 
 /*Cambiar*/uint8_t mcp_readRegister(int desc, uint8_t address)

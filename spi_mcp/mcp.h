@@ -10,7 +10,15 @@ typedef struct{
 	uint16_t id; 
 	uint8_t  dlc;
 	uint8_t  data[CAN_DATA_LENGTH];
-} CanMessage;
+	uint8_t proto_version;
+	uint8_t picID;
+	uint8_t type;
+	uint8_t secNum;
+	uint8_t variable;
+	uint8_t valM;
+	uint8_t valL;
+	uint8_t crc;
+}CanMessage;
 
 char clear_interrupt(char interr, int desc);
 void tigal_handler(int signum);

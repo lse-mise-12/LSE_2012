@@ -79,28 +79,28 @@ void init_canport(void){
 
     RXF1EIDH = 0x00;
     RXF1EIDL = 0x00;
-    RXF1SIDH = 0x00;
-    RXF1SIDL = 0x00;
+    RXF1SIDH = MYIDHIGH;
+    RXF1SIDL = MYIDLOW;
 
     RXF2EIDH = 0x00;
     RXF2EIDL = 0x00;
-    RXF2SIDH = 0x00;
-    RXF2SIDL = 0x00;
+    RXF2SIDH = 0xFF;
+    RXF2SIDL = 0xE0;
 
     RXF3EIDH = 0x00;
     RXF3EIDL = 0x00;
-    RXF3SIDH = 0x00;
-    RXF3SIDL = 0x00;
+    RXF3SIDH = 0xFF;
+    RXF3SIDL = 0xE0;
 
     RXF4EIDH = 0x00;
     RXF4EIDL = 0x00;
-    RXF4SIDH = 0x00;
-    RXF4SIDL = 0x00;
+    RXF4SIDH = 0xFF;
+    RXF4SIDL = 0xE0;
 
     RXF5EIDH = 0x00;
     RXF5EIDL = 0x00;
-    RXF5SIDH = 0x00;
-    RXF5SIDL = 0x00;
+    RXF5SIDH = 0xFF;
+    RXF5SIDL = 0xE0;
 
     // Initialize Receive Masks
     RXM0EIDH = 0x00;      //
@@ -169,7 +169,7 @@ void ECAN_Transmit_dist(char t5,char t3,char t2, int value){
     TXB0DLC = 0x08; // Tamaño 8 bytes
 
     TXB0D7 = 0x0A; // Versión protolo (1.0)
-    TXB0D6 = 0x00; // Dirección de destino (TS --> ID=0)
+    TXB0D6 = 0x03; // Dirección de destino (TS --> ID=0)
     TXB0D5 = t5; // Instrucción WRITE
     TXB0D4 = 0x00; // numero de secuencia
     TXB0D3 = t3; // Variable que se va a escribir

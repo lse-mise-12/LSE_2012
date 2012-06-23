@@ -17,13 +17,20 @@
 #include "functions.h"
 
 // Defines
-#define VDD 3360    // ¿o 5V?
+#define VDD 5000    // ¿o 5V?
+#define umbralHumedad 95
+#define ledWipers LATAbits.LATA1
+#define zumbador LATDbits.LATD4
 
 // Variables
 int temperatureRefreshTime = 2;
 int humidityRefreshTime = 5;
 
 unsigned char puertaAbierta = 0;
+unsigned char estadoWipers = 0;
+unsigned char modoWipers = 0;
+unsigned char cambioWipersManual = 0;
+unsigned char recibidoWipers = 0;
 
 char mens[40];
 
@@ -100,9 +107,10 @@ void service_isr(){
     // Can interrupt new message.
     if(PIR5bits.RXB0IF == 1){
         new_msg = ECAN_Receive();
-        if ( new_msg != 1 ){
-            new_msg == 0;
-        } //else {
+        if ( new_msg == 1 ){
+            new_msg = 1;
+        }
+        else{new_msg = 0;}//else {
             //sprintf(msg, "newmsg err\n");
             //SendMessage(msg);
 
@@ -148,6 +156,7 @@ void main(void) {
 
     int temperatura = 0;
     int humedad = 0;
+    int humedadAnterior = 0;
 
 //    // Variables para la temperatura
 //    int lecturaADC = 0;
@@ -157,7 +166,7 @@ void main(void) {
 //    int tempEntero = 0;
 //    double temperatura = 0.0;
     struct CAN_mesg mensaje;
-    unsigned char seqnumber;
+    unsigned char seqnumber, aux = 0x00;
     int umbral_acc = 22;
     int estado_coche = 0, estado_acc = 0;
     int umbral_l, umbral_h, refresh_l, refresh_h, refresh_temp;
@@ -175,6 +184,7 @@ void main(void) {
     initPuertaInterrupt(puertaAbierta);
 
     cambioPuerta = 0;
+    zumbador = 0;
 
 //    puertaAbierta = estadoPuerta();
 //    sprintf(msg, "Puerta = \r\n");
@@ -190,7 +200,7 @@ void main(void) {
     mensaje.destIDH = 0x00;
     mensaje.destIDL = 0x00;
 
-    mensaje.destino = 0x00;
+    mensaje.destino = 0x20;
     mensaje.type = 0x00;
     mensaje.seq_number = seqnumber;
     mensaje.variable = 0x00;
@@ -203,44 +213,51 @@ void main(void) {
 //        puertaAbierta = 2;
 
         // Actuar si hay un nuevo mensaje
-        if (new_msg == 1){
+        if ( (new_msg == 1) && (RXB0D6 == 0x00) ){
             new_msg = 0;
             sprintf(msg, "New MSG.\n");
             SendMessage(msg);
+             if ( (RXB0D5==TEST) && (RXB0D6 = 0x00) && (RXB0D2 == 0xA4) ) {
+                
+                mensaje.destIDH = TSIDH;
+                mensaje.destIDL = TSIDL;
+                mensaje.type = TEST;
+                mensaje.seq_number = seqnumber;
+                mensaje.variable = TEST;
+                mensaje.byteH = temperatura;
+                aux = estado_coche && (puertaAbierta << 1) && (0x00 << 2) && (estadoWipers << 3) && (modoWipers << 4);
+                mensaje.byteL = aux;
+                //mensaje.datos = 0x00;
+                mensaje.CRC = DATA;
+                ECAN_Transmit(mensaje,0); //0x4A, 0x42
+            }
+            else{
             switch (RXB0D3){
             case INST_STATE1:
                 if(RXB0D1 == STATE_OFF){  // Coche apagado
                     estado_coche = 0;
                     estado_acc = 0;
+                    sprintf(msg, "coche off\n");
+                    SendMessage(msg);
+                }else {
+                    estado_coche = 1;
+                    zumbador = 0;
+                    sprintf(msg, "coche on\n");
+                    SendMessage(msg);
                 }
 
                 if(RXB0D1 == STATE_ON){ // Coche encendido
                     estado_coche = 1;
                     estado_acc = 0;
+                    zumbador = 0;
+                    sprintf(msg, "coche on\n");
+                    SendMessage(msg);
                 }
-                break;
-
-            case INST_AAC_STATE:
-                switch(RXB0D1){
-                    case ACC_ON:
-                        estado_acc = 1;
-                        // enviar estado acc
-                        break;
-                    case ACC_OFF:
-                        estado_acc = 0;
-                        // enviar estado acc
-                        break;
-                    case ACC_AUTO:
-                        estado_acc = 2;
-                        // enviar estado acc
-                        break;
+                else {
+                    estado_coche = 0;
+                    sprintf(msg, "coche off\n");
+                    SendMessage(msg);
                 }
-                break;
-
-            case INST_AAC_UMBRAL:
-                umbral_l = RXB0D1;
-                umbral_h = RXB0D2;
-                umbral_acc = (umbral_h<<8) + umbral_l;
                 break;
 
             case INST_TEMP_REFRESH:
@@ -250,21 +267,101 @@ void main(void) {
                 SetTemperatureRefreshTime(refresh_temp);
                 break;
 
+            case INST_WIPERS:
+                recibidoWipers = RXB0D1;
+                switch (recibidoWipers) {
+                    case 0x00: // Apagado manual
+                        cambioWipersManual = 1;
+                        estadoWipers = 0;
+                        modoWipers = 0;
+                        sprintf(msg, "Inst 0x00\n");
+                        SendMessage(msg);
+                        break;
+                    case 0x01: // Encendido manual
+                        cambioWipersManual = 1;
+                        estadoWipers = 1;
+                        modoWipers = 0;
+                        sprintf(msg, "Inst 0x01\n");
+                        SendMessage(msg);
+                        break;
+//                    case 0x10: // Deshabilita automatico
+//                        modoWipers = 0;
+//                        sprintf(msg, "Inst 0x10\n");
+//                        SendMessage(msg);
+//                        break;
+//                    case 0x11: // Habilita automatico
+//                        modoWipers = 1;
+//                        sprintf(msg, "Inst 0x11\n");
+//                        SendMessage(msg);
+//                        break;
+                    default:
+                        break;
+                }
+                break;
+
+            case INST_W_AUTO:
+                recibidoWipers = RXB0D1;
+                switch (recibidoWipers) {
+                    case 0x00: // Apagado manual
+                        //cambioWipersManual = 1;
+                        //estadoWipers = 0;
+                        modoWipers = 0;
+                        sprintf(msg, "Inst 0x00\n");
+                        SendMessage(msg);
+                        break;
+                    case 0x01: // Encendido manual
+                        //cambioWipersManual = 1;
+                        //estadoWipers = 1;
+                        modoWipers = 1;
+                        sprintf(msg, "Inst 0x01\n");
+                        SendMessage(msg);
+                        break;
+//                    case 0x10: // Deshabilita automatico
+//                        modoWipers = 0;
+//                        sprintf(msg, "Inst 0x10\n");
+//                        SendMessage(msg);
+//                        break;
+//                    case 0x11: // Habilita automatico
+//                        modoWipers = 1;
+//                        sprintf(msg, "Inst 0x11\n");
+//                        SendMessage(msg);
+//                        break;
+                    default:
+                        break;
+                }
+                break;
+
+                case TEST :
+                    mensaje.destIDH = TSIDH;
+                mensaje.destIDL = TSIDL;
+                mensaje.type = TEST;
+                mensaje.seq_number = seqnumber;
+                mensaje.variable = TEST;
+                mensaje.byteH = temperatura;
+                aux = estado_coche && (puertaAbierta << 1) && (0x00 << 2) && (estadoWipers << 3) && (modoWipers << 4);
+                mensaje.byteL = aux;
+                //mensaje.datos = 0x00;
+                mensaje.CRC = DATA;
+                ECAN_Transmit(mensaje,0); //0x4A, 0x42
+                    break;
+
+
             default:// Instruccion no reconocida
                     seqnumber++;
                     mensaje.destIDH = TSIDH;
                     mensaje.destIDL = TSIDL;
 
-                    mensaje.destino = TSIDL;
+                    //mensaje.destino = TSIDL;
                     mensaje.type = ERROR;
-                    mensaje.seq_number = seqnumber;
-                    mensaje.variable = INST_ERROR;
-                    mensaje.byteH = 0x0F;
-                    mensaje.byteL = 0xF0;
+                    mensaje.seq_number = RXB0D4;
+                    mensaje.variable = RXB0D3;
+                    mensaje.byteH = RXB0D2;
+                    mensaje.byteL = RXB0D1;
                     //mensaje.datos = 0x00;
                     mensaje.CRC = DATA;
                     ECAN_Transmit(mensaje, 0);
                 break;
+            }
             }
         }
 
@@ -275,8 +372,8 @@ void main(void) {
                 mensaje.destIDH = TSIDH;
                 mensaje.destIDL = TSIDL;
 
-                mensaje.destino = TSIDL;
-                mensaje.type = EVENT;
+                //mensaje.destino = TSIDL;
+                mensaje.type = READ;
                 mensaje.seq_number = seqnumber;
                 mensaje.variable = INST_PUERTA;
                 mensaje.byteH = 0x00;
@@ -286,13 +383,26 @@ void main(void) {
                 ECAN_Transmit(mensaje, 0);
                 sprintf(msg, "La puerta se ha abierto\n");
                 SendMessage(msg);
+
+                if (estado_coche == 0){
+                    zumbador = 1;
+                    sprintf(msg, "zumbador on seg. on\n");
+                    SendMessage(msg);
+                }
+                if (estado_coche == 1) {
+                    zumbador = 0;
+                    sprintf(msg, "zumbador off \n");
+                    SendMessage(msg);
+                }
+
             } else if (puertaAbierta == 0) {
+                zumbador = 0;
                 seqnumber++;
                 mensaje.destIDH = TSIDH;
                 mensaje.destIDL = TSIDL;
 
-                mensaje.destino = TSIDL;
-                mensaje.type = EVENT;
+                //mensaje.destino = TSIDL;
+                mensaje.type = READ;
                 mensaje.seq_number = seqnumber;
                 mensaje.variable = INST_PUERTA;
                 mensaje.byteH = 0x00;
@@ -319,8 +429,8 @@ void main(void) {
             mensaje.destIDH = TSIDH;
             mensaje.destIDL = TSIDL;
 
-            mensaje.destino = TSIDL;
-            mensaje.type = EVENT;
+            //mensaje.destino = TSIDL;
+            mensaje.type = READ;
             mensaje.seq_number = seqnumber;
             mensaje.variable = INST_TEMP_INT;
             //mensaje.byteH = 0x00;
@@ -343,20 +453,78 @@ void main(void) {
 
             humedad = ReadHumidity();
 
-            // Mandar mensaje CAN
+            if (modoWipers == 1) {
+
+                if (humedad > umbralHumedad) {
+                    ledWipers = 1;
+                    estadoWipers = 1;
+                    if (humedadAnterior <= umbralHumedad) {
+                        seqnumber++;
+                        mensaje.destIDH = TSIDH;
+                        mensaje.destIDL = TSIDL;
+
+                        //mensaje.destino = TSIDL;
+                        mensaje.type = READ;
+                        mensaje.seq_number = seqnumber;
+                        mensaje.variable = INST_WIPERS;
+                        mensaje.byteH = 0x00;
+                        mensaje.byteL = estadoWipers;
+                        mensaje.CRC = DATA;
+                        ECAN_Transmit(mensaje, 0);
+                        sprintf(msg, "wipers auto on\n");
+                        SendMessage(msg);
+                    }
+                } else if (humedad <= umbralHumedad){
+                    ledWipers = 0;
+                    estadoWipers = 0;
+                    if (humedadAnterior > umbralHumedad) {
+                        seqnumber++;
+                        mensaje.destIDH = TSIDH;
+                        mensaje.destIDL = TSIDL;
+
+                        //mensaje.destino = TSIDL;
+                        mensaje.type = READ;
+                        mensaje.seq_number = seqnumber;
+                        mensaje.variable = INST_WIPERS;
+                        mensaje.byteH = 0x00;
+                        mensaje.byteL = estadoWipers;
+                        mensaje.CRC = DATA;
+                        ECAN_Transmit(mensaje, 0);
+                        sprintf(msg, "wipers auto off\n");
+                        SendMessage(msg);
+                    }
+                }
+            }
+            humedadAnterior = humedad;
+        }
+        if (cambioWipersManual == 1) {
+            cambioWipersManual = 0;
+
             seqnumber++;
             mensaje.destIDH = TSIDH;
             mensaje.destIDL = TSIDL;
 
-            mensaje.destino = TSIDL;
-            mensaje.type = EVENT;
+            //mensaje.destino = TSIDL;
+            mensaje.type = READ;
             mensaje.seq_number = seqnumber;
-            mensaje.variable = INST_TEMP_INT;
-            //mensaje.byteH = 0x00;
-            //mensaje.byteL = CONTROL_OFF;
-            mensaje.datos = humedad;
-            mensaje.CRC = DATA;
-            ECAN_Transmit(mensaje, 1);
+            mensaje.variable = INST_WIPERS;
+            mensaje.byteH = 0x00;
+
+            if (estadoWipers == 0) {
+                ledWipers = 0;
+                mensaje.byteL = estadoWipers;
+                mensaje.CRC = 0xFF;
+                ECAN_Transmit(mensaje, 0);
+                sprintf(msg, "wipers off\n");
+                SendMessage(msg);
+            } else {
+                ledWipers = 1;
+                mensaje.byteL = estadoWipers;
+                mensaje.CRC = 0xFF;
+                ECAN_Transmit(mensaje, 0);
+                sprintf(msg, "wipers on\n");
+                SendMessage(msg);
+            }
         }
     }
 }
@@ -384,6 +552,15 @@ void init(void) {
     // Inicialización pin contactor (RB1)
     ANCON1bits.ANSEL8 = 0;  // Entrada digital
     TRISBbits.TRISB1 = 1;   // RB1 input
+    
+    // Led Wipers (RA0)
+    TRISAbits.TRISA0 = 0;   // output
+    LATAbits.LATA0 = 0;
+    TRISAbits.TRISA1 = 0;   // output
+    LATAbits.LATA1 = 0;
+
+    // Zumbador (RD4)
+    TRISDbits.TRISD4=0;
 
     // Interrupcion Timer 1
     INTCON = 0xC0;
@@ -429,10 +606,10 @@ void initADCforTemperature(void) {
 void initADCforHumidity(void) {
     // ALE, aquí tendrías que poner tu inicialización del ADC
     // con el canal del ADC (no puede ser el 10 que es el que usa la temp)
-    TRISBbits.TRISB1 = 1; // RB1 (Canal 8 ADC) INPUT
+    TRISBbits.TRISB4 = 1; // RB4 (Canal 9 ADC) INPUT
     ADCON0bits.ADON = 0; // Apagado al configurar
     ADCON1 = 0b00000000; // all ports to analogs
-    ADCON0bits.CHS = 8; // CH AN8
+    ADCON0bits.CHS = 9; // CH AN8
     ADCON2 = 0b10100000; // Acquisition time and fclk
     ADCON0bits.ADON = 1; // Encendido
 }
@@ -518,6 +695,12 @@ int ReadHumidity(void) {
     aux=aux/0.00636;
  
     humedad=(int) aux;
+
+    if (humedad > 100) {
+        humedad = 100;
+    } else if (humedad < 0) {
+        humedad = 0;
+    }
 
     sprintf(msg, "humedad = %d\r\n", humedad);
     SendMessage(msg);

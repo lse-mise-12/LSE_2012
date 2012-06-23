@@ -77,10 +77,9 @@
 #define INST_TEST 0x00      // Test inicial
 
 #define INST_STATE 0x13     // Estado del coche
-#define INST_LIGHT_CONTROL 0x14   // Estado de las luces
-#define INST_LIGHT_UMBRAL 0x15    // Umbral de las luces
 
 #define INST_VELOC 0x22         // Velocidad del motor
+#define INST_CC 0x23            // Instruccion Cruise control
 #define INST_LIGHT_BOT 0x25
 #define INST_ARRA_BOT 0x26
 #define INST_WIPERS_BOT 0x27

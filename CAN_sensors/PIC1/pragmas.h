@@ -67,8 +67,12 @@
 /*** Instrucciones CAN ***/
 // Variables
 //PIC1
-#define INST_STATE1 0x01    // Estado del coche
+#define INST_STATE1 0x04    // Estado del coche - Seguridad
 
+//#define INST_HUM_MODO 0x07 // Manual/Auto
+//#define INST_HUM_STATE 0x08 // ON/OFF
+#define INST_WIPERS 0x07    //Estado limpia
+#define INST_W_AUTO 0x08   // Estado limpia auto
 #define INST_AAC_STATE 0x10 // Estado del aire acondicionado - On/Off/Auto
 #define INST_TEMP_INT 0x11  // Temperatura interior
 #define INST_AAC_UMBRAL 0x12    // Umbral de encendido apagado del aire acondicionado
@@ -77,17 +81,6 @@
 #define INST_PUERTA 0x05
 #define PUERTA_ABIERTA 0x01
 #define PUERTA_CERRADA 0x00
-
-// Variables
-#define INST_CAR_ONOFF 0x18         // Coche (ON/OFF)
-#define INST_SENSOR_ONOFF 0x19      // Sensor distancia (ON/OFF)
-#define INST_UMBRAL 0x20            // Umbral del sensor para activación sonora
-
-// Valores
-#define CAR_ON 0x01       // Estado del coche - On
-#define CAR_OFF 0x00      // Estado del coche - Off
-#define SENSOR_ON 0x01     // Estado de las luces - On
-#define SENSOR_OFF 0x00    // Estado de las luces - Off
 
 //PIC2
 #define INST_STATE2 0x13    // Estado del coche
@@ -158,4 +151,3 @@ struct CAN_mesg{
     int           datos;        //datos -> TXB0D1 && TXB0D2
     unsigned char CRC;          //TXB0D0    :: CRC
 };
-

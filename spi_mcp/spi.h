@@ -14,6 +14,6 @@
 #define PORTB4_MASK 0x10
 
 #define CAN_DATA_LENGTH 8
-#define BUFFERSIZE CAN_DATA_LENGTH*10 // Tamaño máximo del buffer de recepción
+#define BUFFERSIZE CAN_DATA_LENGTH*100 // Tamaño máximo del buffer de recepción
 
 #endif

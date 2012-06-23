@@ -13,16 +13,7 @@
 
 
 /*** Instrucciones CAN ***/
-// Variables
-#define INST_CAR_ONOFF 0x18         // Coche (ON/OFF)
-#define INST_SENSOR_ONOFF 0x19      // Sensor distancia (ON/OFF)
-#define INST_UMBRAL 0x20            // Umbral del sensor para activación sonora
 
-// Valores
-#define CAR_ON 0x01       // Estado del coche - On
-#define CAR_OFF 0x00      // Estado del coche - Off
-#define SENSOR_ON 0x01     // Estado de las luces - On
-#define SENSOR_OFF 0x00    // Estado de las luces - Off
 
 // Variables
 unsigned char new_msg=0, estado_sensor = 0,estado_coche=0;
@@ -59,8 +50,9 @@ void service_isr(){
     // Can interrupt new message.
     if(PIR5bits.RXB0IF == 1){
         new_msg = ECAN_Receive();
+        new_msg=1;
         if ( new_msg != 1 ){
-            new_msg == 0;
+            new_msg = 0;
         }
     }
 
@@ -77,6 +69,7 @@ void service_isr(){
    // else
         //aux_duty=1;
 // }
+    INTCONbits.GIE = 1;
 }
 
 void main(void) {
@@ -92,7 +85,8 @@ void main(void) {
     PORTDbits.RD4=0;
 
     while(1){
-        
+       //ECAN_Transmit_dist(0xFF,16,estado_sensor,0); //0x4A, 0x42
+       //delayms(1000);
        //sprintf(msg, "%u--%u-%u--%u-%u--%u\n",RXB0SIDH,RXB0SIDL,RXF0SIDH,RXF0SIDL,RXB0D3,RXB0D1);
        //sprintf(msg, "hola\n");
        //sprintf(msg, "%u\n", RXB0D3);
@@ -101,16 +95,16 @@ void main(void) {
        //SendMessage(msg);
       // sprintf(msg, "%u\n", RXB0SIDL);
        //SendMessage(msg);
-       delayms(1000);
-//SendMessage(msg);
+       //delayms(1000);
+    //SendMessage(msg);
         if (new_msg == 1){
             new_msg = 0;
             sprintf(msg, "New MSG.\n");
             SendMessage(msg);
 
-            if (RXB0D5==TEST){
-                ECAN_Transmit_dist(TEST,16,0x4A,66); //0x4A, 0x42
-            }else
+            if ( (RXB0D5==TEST) && (RXB0D2 == 0xA4) ){
+                ECAN_Transmit_dist(RXB0D5,16,estado_sensor,0); //0x4A, 0x42
+            }else{
 
             switch (RXB0D3){
             case INST_CAR_ONOFF:
@@ -130,12 +124,14 @@ void main(void) {
             case INST_SENSOR_ONOFF:
                 if (RXB0D1 == SENSOR_ON){
                     estado_sensor = 1;
+                    estado_coche = 1;
                     PORTBbits.RB5 = 0; //Vcc IR ON
                     sprintf(msg, "Sensor ON.\n");
                     SendMessage(msg);
 
                 }else{
                     estado_sensor = 0;
+                    estado_coche = 0;
                     PORTBbits.RB5 = 1; //Vcc IR OFF
                     sprintf(msg, "Sensor OFF.\n");
                     SendMessage(msg);
@@ -158,9 +154,9 @@ void main(void) {
                 sprintf(msg, "Error: Instruccion no reconocida.\n");
                 SendMessage(msg);
                 break;
-            }
-        }
-    }
+            }//switch
+        }//else
+      }//new_msg
             //PORTDbits.RD0=1;
             //aux=read_sensor();
             //sprintf(msg, "%u sensor\n", aux);
@@ -198,8 +194,9 @@ void main(void) {
                 //SetDCPWM2(1);
                 PORTDbits.RD4=0;
             }
-        }
-    }
+         } //if_estados
+       }//while
+    }//main
 
 
 void init(void){

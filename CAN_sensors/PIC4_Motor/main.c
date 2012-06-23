@@ -29,7 +29,7 @@ unsigned int velocidad_actual = 0;
 unsigned long temp_ADC_conv = 0;
 unsigned long ADC_conv = 0;
 unsigned char pulsadaTeclaONOFF = 0;
-int enviar = 0, ledOFF=0, start=0;
+int enviar = 0, ledOFF=0, start=0, cambiocc = 0;
 int R4down = 0;
 int entrapulso = 0;
 int R5down = 0;
@@ -116,8 +116,10 @@ void service_isr()
         if(PORTBbits.RB7){
             if(R4down){
                 R4down = 0;
+                 cambiocc=1;
                 //se activa el CC
                 if (pulsadaTeclaONOFF == 1){
+
                     pulsadaTeclaONOFF = 0; // desactivar CC
                     if(ledOFF==0) {
                     PORTCbits.RC4 = 0;
@@ -128,6 +130,7 @@ void service_isr()
                     //SendMessage(rpms);
                     //SetDCPWM2(50);
                 }else{
+
                     pulsadaTeclaONOFF = 1; // activamos el CC
                     if(ledOFF==1) {
                     PORTCbits.RC4 = 0;
@@ -180,6 +183,7 @@ void main(void){
 
     char msg_inicial[] = "\n\n  PIC18LF45K80 \r\nMotor Module V8-350CV\n\n\n";
     char rpms[15];
+    unsigned char tipo;
     
     int n = 0;
     int ar = 0;
@@ -214,31 +218,45 @@ void main(void){
     //ECAN_Transmit(pulsos_total);
 
     while(1){
-//        write_msg(TSIDH, TSIDL, TEST, INST_TEST, pulsos_total, pulsadaTeclaONOFF, 0);
-//        ECAN_Transmit(mensaje, 0);      // Reenviar TEST
-        if ( (new_msg == 1) && (RX_TYP == TEST) && (RXB0D2 == TEST_VALUE) ) {               // Comprobar tipo test
-                write_msg(TSIDH, TSIDL, TEST, INST_TEST, pulsos_total, pulsadaTeclaONOFF, 0);
+        if ( ( new_msg == 1 )  && (RX_DES == TSIDL )&& (RX_TYP == TEST) && (RXB0D2 == TEST_VALUE) ) {               // Comprobar tipo test
+                tipo = RXB0D5;
+                write_msg(TSIDH, TSIDL, tipo, INST_TEST, pulsos_total, pulsadaTeclaONOFF, 0);
                 ECAN_Transmit(mensaje, 0);      // Reenviar TEST
         }
-        if ( ( new_msg == 1 ) && ( RX_LSB == STATE_ON ) && (RX_VAR == INST_STATE) && (RX_TYP == WRITE) ){
+        if ( ( new_msg == 1 ) && (RX_DES == TSIDL ) && ( RX_LSB == STATE_ON ) && (RX_VAR == INST_STATE) && (RX_TYP == WRITE) ){
             start = 1;
         }
-        if ( ( new_msg == 1 ) && ( RX_LSB == STATE_OFF ) && (RX_VAR == INST_STATE) && (RX_TYP == WRITE) ){
+        else{
             start = 0;
         }
+        if ( ( new_msg == 1 )  && (RX_DES == TSIDL )&& ( RX_LSB == STATE_OFF ) && (RX_VAR == INST_STATE) && (RX_TYP == WRITE) ){
+            start = 0;
+            write_msg(TSIDH, TSIDL, READ, INST_VELOC, 0, 0, 0);
+            ECAN_Transmit(mensaje, 1);      // Eenviar Velocidad
+        }
+//        else{
+//            start = 1;
+//        }
 
         while(start == 1){
 
-        if ( (new_msg == 1) && (RX_TYP == TEST) && (RXB0D2 == TEST_VALUE) ) {               // Comprobar tipo test
-                write_msg(TSIDH, TSIDL, TEST, INST_TEST, pulsos_total, pulsadaTeclaONOFF, 0);
-                ECAN_Transmit(mensaje, 0);      // Reenviar TEST
+        if ( ( new_msg == 1 ) && (RX_TYP == TEST) && (RXB0D2 == TEST_VALUE) ) {               // Comprobar tipo test
+        tipo = RXB0D5;
+        write_msg(TSIDH, TSIDL, tipo, INST_TEST, pulsos_total, pulsadaTeclaONOFF, 0);
+        ECAN_Transmit(mensaje, 0);      // Reenviar TEST
         }
         if ( ( new_msg == 1 ) && ( RX_LSB == STATE_ON ) && (RX_VAR == INST_STATE) && (RX_TYP == WRITE) ){
             start = 1;
         }
+//        else{
+//            start = 0;
+//        }
         if ( ( new_msg == 1 ) && ( RX_LSB == STATE_OFF ) && (RX_VAR == INST_STATE) && (RX_TYP == WRITE) ){
             start = 0;
         }
+//        else{
+//            start = 1;
+//        }
             
         //arranque=ECAN_Receive();
         //arranque=RXB0D1;
@@ -292,17 +310,29 @@ void main(void){
 
             SetDCPWM2(velocidad_actual);
 //ECAN_Transmit(enviar);
-            if(enviar == 4 ){
+            if(enviar >= 4 ){
                 enviar = 0;
                 //sprintf(rpms, "P/s = %lu\n", pulsos_total);
                 //SendMessage(rpms);
                 //ECAN_Transmit(pulsos_total);
                 write_msg(TSIDH, TSIDL, READ, INST_VELOC, 0, 0, pulsos_total);
-                ECAN_Transmit(mensaje, 1);      // Reenviar TEST
+                ECAN_Transmit(mensaje, 1);      // Eenviar Velocidad
 
                 pulsos_total=0;
                 //PORTCbits.RC4 =! PORTCbits.RC4;
             }
+            
+            if(cambiocc == 1 ){
+                cambiocc = 0;
+                //sprintf(rpms, "P/s = %lu\n", pulsos_total);
+                //SendMessage(rpms);
+                //ECAN_Transmit(pulsos_total);
+                write_msg(TSIDH, TSIDL, READ, INST_CC, 0, pulsadaTeclaONOFF, 0);
+                ECAN_Transmit(mensaje, 0);      // Eenviar Estado CC
+
+            }
+
+
            // RXB0D1=0x00;// No se puede escribir en un registro de lectura ;)
         }
 

@@ -11,7 +11,7 @@
 /* */
 void init(void);
 void write_msg (unsigned char, unsigned char, unsigned char, unsigned char, unsigned char, unsigned char);
-unsigned char new_msg = 0, estado_control_luces = 0, estado_parking = 0, estado_control_wipers = 0;
+unsigned char new_msg = 0, estado_control_luces = 0, estado_parking = 0, estado_control_wipers = 0x10;
 unsigned char seqnumber;
 struct CAN_mesg mensaje;
 int R0down = 0;
@@ -114,6 +114,7 @@ void service_isr(){
 
 void main(void){
     //char msg_inicial[] = "\n\n  PIC18LF45K80 \r\n  PIC5 - Contro Panel\n\n\n";
+    unsigned char tipo = 0x00;
     init();
     init_uartport();
     init_canport();
@@ -163,56 +164,14 @@ void main(void){
 
     while(1){
         if (new_msg){
-            if ((RX_TYP == TEST) && (RXB0D2 == TEST_VALUE) ) {               // Comprobar tipo test
-                write_msg(TSIDH, TSIDL, TEST, INST_TEST, 0, 0);
+            if ((RX_TYP == TEST) && (RX_MSB == TEST_VALUE) && (RX_DES = 0x00) ) {               // Comprobar tipo test
+                tipo = RXB0D5;
+                write_msg(TSIDH, TSIDL, tipo, INST_TEST, 0, 0);
                 ECAN_Transmit(mensaje, 0);      // Reenviar TEST
             }
         }
 
-            //else{
-            //   switch(RX_VAR){     // Numero de variable
-                    /*
-                    case 0x13:
-                        if (RX_LSB == STATE_ON){     // Llega Encender pic
-                            pic5_state = 1;
-                        }
-                        if (RX_LSB == STATE_OFF){     // Llega Encender pic
-                            pic5_state = 0;
-                        }
-
-                        break;
-                    */
-              /*      case 0x25:
-                        if (RX_LSB == LIGHT_ON){
-                            //luces encendidas
-                        }
-                        if (RX_LSB == LIGHT_OFF){
-                            //luces apagadas
-                        }
-                        break;
-
-                    case 0x26:
-
-                        break;
-
-                    case 0x27:
-
-                        break;
-
-                    case 0x28:
-
-                        break;
-
-                    default:
-                        write_msg(TSIDH, TSIDL, ERROR, INST_ERROR, ERROR, ERROR);
-                        ECAN_Transmit(mensaje, 0);      // Reenviar ERROR
-                        break;
-
-                }*/
-
-
-
-        switch(cambio){
+     switch(cambio){
             case 0:
                 cambio = 0;
                 break;
@@ -239,6 +198,7 @@ void main(void){
                     write_msg(TSIDH, TSIDL, WRITE, INST_LIGHT_BOT, 0, LIGHT_ON);
                     ECAN_Transmit(mensaje, 0);
                     LED_LUZ = 1;
+                    LED_LUZ_AUTO = 0;
                     //sprintf(rpms, "luces on\n");
                     //SendMessage(rpms);
                 }
@@ -248,6 +208,7 @@ void main(void){
                     write_msg(TSIDH, TSIDL, WRITE, INST_LIGHT_BOT, 0, LIGHT_OFF);
                     ECAN_Transmit(mensaje, 0);
                     LED_LUZ = 0;
+                    LED_LUZ_AUTO = 0;
                     //sprintf(rpms, "luces off\n");
                     //SendMessage(rpms);
                 }
@@ -255,15 +216,15 @@ void main(void){
 
             case 21:            //luces auto
                 cambio = 0;
-                if(estado_control_luces == CONTROL_LIGHT_AUTO_ON){
-                    estado_control_luces = CONTROL_LIGHT_AUTO_OFF;
+                if(estado_control_luces == LIGHT_ON){
+                    estado_control_luces = LIGHT_OFF;
                     LED_LUZ_AUTO = 0;
                 }
                 else{
-                    estado_control_luces = CONTROL_LIGHT_AUTO_ON;
+                    estado_control_luces = LIGHT_ON;
                     LED_LUZ_AUTO = 1;
                 }
-                    write_msg(TSIDH, TSIDL, WRITE, INST_LIGHT_BOT, 0, estado_control_luces);
+                    write_msg(TSIDH, TSIDL, WRITE, INST_L_AUTO_BOT, 0, estado_control_luces);
                     ECAN_Transmit(mensaje, 0);
                     //LED_LUZ_AUTO = !LED_LUZ_AUTO;
                     //sprintf(rpms, "luces auto\n");
@@ -277,6 +238,7 @@ void main(void){
                     write_msg(TSIDH, TSIDL, WRITE, INST_WIPERS_BOT, 0, WIPERS_OFF);
                     ECAN_Transmit(mensaje, 0);
                     LED_WIP = 0;
+                    LED_WIP_AUTO = 0;
                     //sprintf(rpms, "wip off\n");
                     //SendMessage(rpms);
                 }
@@ -285,6 +247,7 @@ void main(void){
                     write_msg(TSIDH, TSIDL, WRITE, INST_WIPERS_BOT, 0, WIPERS_ON);
                     ECAN_Transmit(mensaje, 0);
                     LED_WIP = 1;
+                    LED_WIP_AUTO = 0;
                     //sprintf(rpms, "wip on\n");
                     //SendMessage(rpms);
                 }
@@ -292,15 +255,15 @@ void main(void){
 
             case 31:    // Wipers Auto mode
                 cambio = 0;
-                if (estado_control_wipers == CONTROL_WIPERS_AUTO_OFF){
-                    estado_control_wipers = CONTROL_WIPERS_AUTO_ON;
+                if (estado_control_wipers == WIPERS_OFF){
+                    estado_control_wipers = WIPERS_ON;
                     LED_WIP_AUTO = 1;
                 }
                 else{
-                    estado_control_wipers = CONTROL_WIPERS_AUTO_OFF;
+                    estado_control_wipers = WIPERS_OFF;
                     LED_WIP_AUTO = 0;
                 }
-                write_msg(TSIDH, TSIDL, WRITE, INST_WIPERS_BOT, 0, estado_control_wipers);
+                write_msg(TSIDH, TSIDL, WRITE, INST_W_AUTO_BOT, 0, estado_control_wipers);
                 ECAN_Transmit(mensaje, 0);
                 //sprintf(rpms, "wip auto\n");
                 //SendMessage(rpms);

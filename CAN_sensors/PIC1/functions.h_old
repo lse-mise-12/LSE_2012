@@ -2,9 +2,9 @@
 #define TIMER_VALUE 0xE17B  //1s
 //#define TIMER_VALUE 0xA471  //3s
 
-//Soy el PIC2
-#define MYIDHIGH PIC2IDH
-#define MYIDLOW PIC2IDL
+//Soy el PIC1
+#define MYIDHIGH 0x00
+#define MYIDLOW 0x01
 
 
 //MOTOR CONFIGURATION
@@ -69,28 +69,28 @@ void init_canport(void){
 
     RXF1EIDH = 0x00;
     RXF1EIDL = 0x00;
-    RXF1SIDH = MYIDHIGH;
-    RXF1SIDL = MYIDLOW;
+    RXF1SIDH = 0x00;
+    RXF1SIDL = 0x00;
 
     RXF2EIDH = 0x00;
     RXF2EIDL = 0x00;
-    RXF2SIDH = 0xFF;
-    RXF2SIDL = 0xE0;
+    RXF2SIDH = 0x00;
+    RXF2SIDL = 0x00;
 
     RXF3EIDH = 0x00;
     RXF3EIDL = 0x00;
-    RXF3SIDH = 0xFF;
-    RXF3SIDL = 0xE0;
+    RXF3SIDH = 0x00;
+    RXF3SIDL = 0x00;
 
     RXF4EIDH = 0x00;
     RXF4EIDL = 0x00;
-    RXF4SIDH = 0xFF;
-    RXF4SIDL = 0xE0;
+    RXF4SIDH = 0x00;
+    RXF4SIDL = 0x00;
 
     RXF5EIDH = 0x00;
     RXF5EIDL = 0x00;
-    RXF5SIDH = 0xFF;
-    RXF5SIDL = 0xE0;
+    RXF5SIDH = 0x00;
+    RXF5SIDL = 0x00;
 
     // Initialize Receive Masks
     RXM0EIDH = 0x00;      //
@@ -160,7 +160,7 @@ void ECAN_Transmit(struct CAN_mesg mensaje, int selec){
     TXB0DLC = 0x08; //tamaño 1 bytes
 
     TXB0D7 = 0x0A;  // versión de protocolo CAN
-    TXB0D6 = 0x02;  //mensaje.destino; // comando de destino
+    TXB0D6 = mensaje.destino; // comando de destino
     TXB0D5 = mensaje.type; // comando write
     TXB0D4 = mensaje.seq_number;
     TXB0D3 = mensaje.variable;
@@ -171,53 +171,6 @@ void ECAN_Transmit(struct CAN_mesg mensaje, int selec){
     TXB0CON = TXB0CON | 0x08; //Set the buffer to transmit, TXREQ = 1
     PORTBbits.RB0 = !PORTBbits.RB0;  //invertimos el pin
 }
-
-
-void ECAN_Transmit_dist(char t5,char t3,char t2, int value){
-    //char tempChar[2];
-    //memcpy(&tempChar[0], &value, sizeof(value));
-    //sprintf(tempChar, "%d", value);
-
-    TXB0EIDH = 0x00;
-    TXB0EIDL = 0x00;
-
-    TXB0SIDH = TSIDH;
-    //TXB0SIDLbits.SID = TSIDL;
-    TXB0SIDL = TSIDL;
-
-    TXB0DLC = 0x08; // Tamaño 8 bytes
-
-    TXB0D7 = 0x0A; // Versión protolo (1.0)
-    TXB0D6 = 0x02; // Dirección de destino (TS --> ID=0)
-    TXB0D5 = t5; // Instrucción WRITE
-    TXB0D4 = 0x00; // numero de secuencia
-    TXB0D3 = t3; // Variable que se va a escribir
-    TXB0D2 = t2; // MSB Valor de variable
-    TXB0D1 = value; // LSB Valor de variable
-    TXB0D0 = 0x00; // Valor CRC
-
-
-
-    //Configuramos prioridad
-    //TXB0CONbits.TXREQ = 1; //Set the buffer to transmit
-    TXB0CON = TXB0CON | 0x08; //Set the buffer to transmit, TXREQ = 1
-        PORTBbits.RB0 = 0;
-        PORTAbits.RA0 = 0;
-    //while(TXB0CONbits.TXREQ == 1)
-    //{
-        PORTAbits.RA0 = 1;
-        //TXB0CONbits.TXREQ = 0;
-    //}
-        PORTAbits.RA0 = 0;
-
-        PORTBbits.RB0 = 1;
-    if (TXB0CONbits.TXERR == 1)
-        PORTBbits.RB0 = 0;
-                //!PORTBbits.RB0;  //invertimos el pin
-    //SendMessage("123\n");
-
-}
-
 
 /*********************************************************************
 *

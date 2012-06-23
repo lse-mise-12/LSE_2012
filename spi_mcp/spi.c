@@ -62,7 +62,8 @@ typedef struct spi_pipe_ {
 
 /* Global variables */
 volatile char *datos; // volatile keyword prevents of compiler optimizations. Use for accessing memory mapped region
-unsigned char databuf[BUFFERSIZE], read_idx, write_idx; // Variables para la implementacion del buffer circular
+unsigned char databuf[BUFFERSIZE];
+unsigned int read_idx, write_idx; // Variables para la implementacion del buffer circular
 spi_pipe *pdata;
 
 int spi_major = 70;
@@ -314,7 +315,7 @@ void tigal_isr(int parametro1, void *parametro2, struct pt_regs *parametro3) {
 			awake = 1;
 			break;
 		default:
-			printk("<1>SPI: Error valor  inválido de aux_rxstatus = 0x%02X\n", aux_rxstatus);
+			printk("<1>SPI: Error valor inválido de aux_rxstatus = 0x%02X\n", aux_rxstatus);
 			break;
 	}
 	// 3. Clear interrupt by writing to GPIOxEOI register.
@@ -350,12 +351,19 @@ int spi_release(struct inode *inode, struct file *filep) {
 ssize_t spi_read(struct file *filep, char *buf, size_t count, loff_t *f_pos) {
 	int i;
 	char *pbuf;
-	printk("<1>Entrando en spi_read\n");
+	//printk("<1>Entrando en spi_read\n");
 	pbuf=buf;
-	printk("<1>pbuf de spi_read() = %p\n", pbuf);
+	//printk("<1>pbuf de spi_read() = %p\n", pbuf);
 	if(count % CAN_DATA_LENGTH !=0) {
 		printk("<1>Error! Se debe leer un multiplo de CAN_DATA_LENGTH bytes\n");
 	}
+	
+	if(write_idx==read_idx)
+	{
+		printk("<1>No quedan datos por leer (wr_idx=rd_idx)\n");
+		return 0;
+	}
+	
 	for(i=0;i<count;i++) {
 		*pbuf=databuf[read_idx];
 		read_idx++;

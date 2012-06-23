@@ -4,7 +4,7 @@
 #define MAX_LENGHT_TOKENS 64
 #define MAX_CAN_TOKENS  20
 
-#define GPS_PORT	"/dev/ttyUSB0"
+#define GPS_PORT	"/dev/ttyUSB1"
 #define GPS_BITRATE	4800
 #define GPS_FREQ	2
 

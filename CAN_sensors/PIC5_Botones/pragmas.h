@@ -76,15 +76,17 @@
 // Variables
 #define INST_TEST 0x00      // Test inicial
 
-#define INST_STATE 0x13     // Estado del coche
-#define INST_LIGHT_CONTROL 0x14   // Estado de las luces
-#define INST_LIGHT_UMBRAL 0x15    // Umbral de las luces
+#define INST_STATE 0x13             // Estado del coche
+//#define INST_LIGHT_CONTROL 0x14     // Estado de las luces
+#define INST_LIGHT_UMBRAL 0x15      // Umbral de las luces
 
-#define INST_LIGHT_BOT 0x25
-#define INST_ARRA_BOT 0x26
-#define INST_WIPERS_BOT 0x27
-#define INST_PARKING_BOT 0x28
-#define INST_ERROR  0xFF    // Variable de error
+#define INST_ARRA_BOT 0x13          // Boton arranque
+#define INST_LIGHT_BOT 0x14         // Boton luces
+#define INST_L_AUTO_BOT 0x28        // Boton luces auto
+#define INST_WIPERS_BOT 0x07        // Boton Wipers
+#define INST_W_AUTO_BOT 0x08             // Boton Wipers auto
+#define INST_PARKING_BOT 0x19       // Boton parking
+#define INST_ERROR  0xFF            // Variable de error
 
 // Valores
 #define TEST_VALUE 0xA4           // Test mesg.

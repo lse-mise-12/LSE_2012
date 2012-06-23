@@ -74,10 +74,12 @@
 #define INST_TEMP_REFRESH 0x1A // Modificar el tiempo de refresco de la temperatura
 
 //PIC2
-#define INST_STATE2 0x13    // Estado del coche
-#define INST_LIGHT_CONTROL 0x14   // Estado de las luces
-#define INST_LIGHT_UMBRAL 0x15    // Umbral de las luces
-#define INST_ERROR  0xFF    // Variable de error
+#define INST_STATE2 0x13            // Estado del coche
+#define INST_LIGHT_CONTROL 0x14     // Estado de las luces
+#define INST_L_AUTO 0x28            // Estado luces automaticas
+#define INST_LIGHT_UMBRAL 0x15      // Umbral de las luces
+#define INST_ERROR  0xFF            // Variable de error
+
 
 //PIC4
 #define INST_STATE4 0x21
@@ -100,6 +102,16 @@
 #define LIGHT_ON 0x01       // Estado de las luces - Write
 #define LIGHT_OFF 0x00      // Estado de las luces - Write
 
+#define INST_CAR_ONOFF 0x18         // Coche (ON/OFF)
+#define INST_SENSOR_ONOFF 0x16      // Sensor distancia (ON/OFF)
+#define INST_UMBRAL 0x20            // Umbral del sensor para activación sonora
+
+// Valores
+#define CAR_ON 0x01       // Estado del coche - On
+#define CAR_OFF 0x00      // Estado del coche - Off
+#define SENSOR_ON 0x01     // Estado de las luces - On
+#define SENSOR_OFF 0x00    // Estado de las luces - Off
+
 
 // Tipos de comando
 #define TEST  0x00
@@ -116,23 +128,23 @@
 
 //PIC 1: Airbag, Seguridad, Limpia, Sleep, Temp :: ID = 0x0001
 #define PIC1IDH 0x00
-#define PIC1IDL 0x01
+#define PIC1IDL 0x20
 
 //PIC 2: Distancia, Luces :: ID = 0x0002
 #define PIC2IDH 0x00
-#define PIC2IDL 0x02
+#define PIC2IDL 0x40
 
 //PIC 3: Parking :: ID = 0x0003
 #define PIC3IDH 0x00
-#define PIC3IDL 0x03
+#define PIC3IDL 0x60
 
 //PIC 4: Motor :: ID = 0x0004
 #define PIC4IDH 0x00
-#define PIC4IDL 0x04
+#define PIC4IDL 0x80
 
 //PIC 5: Control Panel :: ID = 0x0005
 #define PIC5IDH 0x00
-#define PIC5IDL 0x05
+#define PIC5IDL 0xA0
 
 struct CAN_mesg{
     unsigned char destIDH;      //TXB0SIDH  :: Destino High CAN

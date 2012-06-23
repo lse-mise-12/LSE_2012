@@ -18,10 +18,9 @@
 #define LED_FRENO LATAbits.LATA2
 
 // Variables
-int refreshTime = 1, estado_coche = 0, control_luces = 0;    //Cada segundo por defecto
+int refreshTime = 1, control_luces = 0;    //Cada segundo por defecto
 unsigned int umbral_luces = 10000; // 10000 ohm por defecto
 unsigned char new_msg=0,  estado_luces = 0, estado_anterior = 1;
-unsigned int umbral_recibido = 0;
 char msg;
 struct CAN_mesg mensaje;
 unsigned char seqnumber = 0x00;
@@ -33,6 +32,15 @@ void SetTimer1(unsigned int time);
 void SetRefreshTime(int refresh);
 void SetUmbral(int umbral);
 void luces_automaticas(void);
+void delayms(int);
+
+unsigned char estado_sensor = 0,estado_coche=0;
+unsigned int umbral_recibido = 0, umbral=730,aux_pwm=0,dist=0; //por defecto a 30 cm
+char msg,aux_duty=0;
+
+// Funciones distancia
+int read_sensor(void);
+
 
 //*********************************************************************
 // Interrupt Service Routine
@@ -85,6 +93,8 @@ void main(void) {
     char msg[40];
     int temp_l, temp_h;
     int control_luces_auto = 0;
+    int aux;
+    unsigned char lsb = 0x00;
     
     int seqnumber = 0;
     init();
@@ -112,9 +122,44 @@ void main(void) {
         // Falta sensor distancia
         if (new_msg == 1){
             new_msg = 0;
+
+            if (RXB0D5==TEST){
+                lsb = estado_luces && (control_luces_auto << 1);
+                ECAN_Transmit_dist(TEST,19,dist, lsb); //0x4A, 0x42
+            }else
+
             sprintf(msg, "New MSG.\n");
             SendMessage(msg);
             switch (RXB0D3){
+            case INST_SENSOR_ONOFF:
+                if (RXB0D1 == SENSOR_ON){
+                    estado_sensor = 1;
+                    estado_coche = 1;
+                    PORTBbits.RB5 = 0; //Vcc IR ON
+                    sprintf(msg, "Sensor ON.\n");
+                    SendMessage(msg);
+
+                }else{
+                    estado_sensor = 0;
+                    estado_coche = 0;
+                    PORTBbits.RB5 = 1; //Vcc IR OFF
+                    sprintf(msg, "Sensor OFF.\n");
+                    SendMessage(msg);
+                }
+                break;
+
+            case INST_UMBRAL:
+                umbral_recibido  = RXB0D1;
+                if (umbral_recibido<=10) umbral_recibido=10;
+                if (umbral_recibido>=80) umbral_recibido=80;
+
+                sprintf(msg, "Umbral dist: %u\n", umbral_recibido);
+                SendMessage(msg);
+                umbral=13884*pow(umbral_recibido,-0.85544);
+                sprintf(msg, "Umbral bits: %u\n", umbral);
+                SendMessage(msg);
+                break;
+
             case INST_STATE2:
                 if (RXB0D1 == STATE_ON){
                     estado_coche = 1;
@@ -128,11 +173,10 @@ void main(void) {
                 }
                 break;
 
-            case INST_LIGHT_CONTROL:
-
+            case INST_LIGHT_CONTROL:            // Luces control manual
                 switch(RXB0D1){
                     case CONTROL_LIGHT_ON:
-                        control_luces_auto = 0;      // Luces Auto off
+                        control_luces_auto = 0;      // Luces modo Auto off
                         estado_luces = 1;       // Encender luces
 
                         seqnumber++;
@@ -141,7 +185,7 @@ void main(void) {
                         mensaje.destIDL = TSIDL;
 
                         mensaje.destino = TSIDL;
-                        mensaje.type = EVENT;
+                        mensaje.type = READ;
                         mensaje.seq_number = seqnumber;
                         mensaje.variable = INST_LIGHT_CONTROL;
                         mensaje.byteH = 0x00;
@@ -153,51 +197,21 @@ void main(void) {
                         LED_LUCES = 1;
                         sprintf(msg, "Luces ON.\n");
                         SendMessage(msg);
-                        break;
 
-                
-                    case CONTROL_LIGHT_AUTO_ON:
-                       T1CONbits.TMR1ON = 1;
-                    //if (control_luces_auto == 0){
-                    //    control_luces_auto = 1;      // Luces modo automatico ON
-                        sprintf(msg, "Luces Auto ON.\n");
-                        SendMessage(msg);
                         seqnumber++;
 
                         mensaje.destIDH = TSIDH;
                         mensaje.destIDL = TSIDL;
                         mensaje.destino = TSIDL;
-                        mensaje.type = EVENT;
+                        mensaje.type = READ;
                         mensaje.seq_number = seqnumber;
-                        mensaje.variable = INST_LIGHT_CONTROL;
+                        mensaje.variable = INST_L_AUTO;
                         mensaje.byteH = 0x00;
-                        mensaje.byteL = CONTROL_LIGHT_AUTO_ON;
+                        mensaje.byteL = LIGHT_OFF;
                         //mensaje.datos = 0x00;
                         mensaje.CRC = DATA;
-
                         ECAN_Transmit(mensaje, 0);
-                        luces_automaticas();
-                        break;
 
-                    
-                    case CONTROL_LIGHT_AUTO_OFF:
-                        control_luces_auto = 0;     // Luces modo automatico OFF
-                        seqnumber++;
-
-                        mensaje.destIDH = TSIDH;
-                        mensaje.destIDL = TSIDL;
-                        mensaje.destino = TSIDL;
-                        mensaje.type = EVENT;
-                        mensaje.seq_number = seqnumber;
-                        mensaje.variable = INST_LIGHT_CONTROL;
-                        mensaje.byteH = 0x00;
-                        mensaje.byteL = CONTROL_LIGHT_AUTO_OFF;
-                        //mensaje.datos = 0x00;
-                        mensaje.CRC = DATA;
-
-                        ECAN_Transmit(mensaje, 0);
-                        sprintf(msg, "Luces Auto OFF.\n");
-                        SendMessage(msg);
                         break;
 
                     case CONTROL_LIGHT_OFF:
@@ -212,7 +226,7 @@ void main(void) {
                         mensaje.destIDH = TSIDH;
                         mensaje.destIDL = TSIDL;
                         mensaje.destino = TSIDL;
-                        mensaje.type = EVENT;
+                        mensaje.type = READ;
                         mensaje.seq_number = seqnumber;
                         mensaje.variable = INST_LIGHT_CONTROL;
                         mensaje.byteH = 0x00;
@@ -220,6 +234,76 @@ void main(void) {
                         //mensaje.datos = 0x00;
                         mensaje.CRC = DATA;
 
+                        ECAN_Transmit(mensaje, 0);
+                        LED_LUCES = 0;
+                        sprintf(msg, "Luces OFF.\n");
+                        SendMessage(msg);
+
+                        seqnumber++;
+
+                        mensaje.destIDH = TSIDH;
+                        mensaje.destIDL = TSIDL;
+                        mensaje.destino = TSIDL;
+                        mensaje.type = READ;
+                        mensaje.seq_number = seqnumber;
+                        mensaje.variable = INST_L_AUTO;
+                        mensaje.byteH = 0x00;
+                        mensaje.byteL = LIGHT_OFF;
+                        //mensaje.datos = 0x00;
+                        mensaje.CRC = DATA;
+                        ECAN_Transmit(mensaje, 0);
+
+                        break;
+                    default:
+                        sprintf(msg, "Error: Instruccion no reconocida.\n");
+                        SendMessage(msg);
+                        break;
+                }
+
+                case INST_L_AUTO:                   // Control luces automatico
+                switch(RXB0D1){
+                    case CONTROL_LIGHT_ON:
+                        control_luces_auto = 1;      // Luces Auto on
+                        //estado_luces = 1;       // Encender luces
+
+                        seqnumber++;
+
+                        mensaje.destIDH = TSIDH;
+                        mensaje.destIDL = TSIDL;
+
+                        mensaje.destino = TSIDL;
+                        mensaje.type = READ;
+                        mensaje.seq_number = seqnumber;
+                        mensaje.variable = INST_L_AUTO;
+                        mensaje.byteH = 0x00;
+                        mensaje.byteL = LIGHT_ON;
+                        //mensaje.datos = 0x00;
+                        mensaje.CRC = DATA;
+
+                        ECAN_Transmit(mensaje, 0);
+                        //LED_LUCES = 1;
+                        sprintf(msg, "Luces auto ON.\n");
+                        SendMessage(msg);
+                        break;
+                    case CONTROL_LIGHT_OFF:
+
+                        control_luces_auto = 0;         // Luces modo automatico OFF
+//                    if(control_luces_auto == 1){
+//                        control_luces_auto = 0
+//                    }else{}
+                        //estado_luces = 0;               // Apagar luces
+                        seqnumber++;
+
+                        mensaje.destIDH = TSIDH;
+                        mensaje.destIDL = TSIDL;
+                        mensaje.destino = TSIDL;
+                        mensaje.type = READ;
+                        mensaje.seq_number = seqnumber;
+                        mensaje.variable = INST_L_AUTO;
+                        mensaje.byteH = 0x00;
+                        mensaje.byteL = LIGHT_OFF;
+                        //mensaje.datos = 0x00;
+                        mensaje.CRC = DATA;
                         ECAN_Transmit(mensaje, 0);
                         LED_LUCES = 0;
                         sprintf(msg, "Luces OFF.\n");
@@ -245,6 +329,47 @@ void main(void) {
             }
         }
 
+        /***************  DISTANCIA * ********/
+            //PORTDbits.RD0=1;
+            //aux=read_sensor();
+            //sprintf(msg, "%u sensor\n", aux);
+            //SendMessage(msg);
+            //sprintf(msg, "%u-%u estadosensorcoche\n", estado_coche,estado_sensor);
+            //delayms(1000);
+        if (estado_coche == 1 && estado_sensor==1){
+            aux=read_sensor();
+            //delayms(1000);
+            //umbral=1000;
+            //OpenPWM2(255,0x00);
+            dist=pow(13884/aux,1/0.85544);
+
+
+            if (dist<=10) dist=10;
+            if (dist>=80) dist=255;
+            ECAN_Transmit_dist(READ,17,0,dist);
+            sprintf(msg, "sensor: %u bits, %u cm\n", aux,dist);
+            SendMessage(msg);
+
+            if (aux>=umbral){
+                //T2CONbits.TMR2ON=1;
+                //OpenPWM2(255-((aux/4)&255),0x00);
+                //OpenPWM2(255,2584-aux);
+                //OpenPWM2(255,0x00);
+
+                //PORTDbits.RD4=1;
+                //SetDCPWM2(aux_pwm);
+                //SetDCPWM2(80);
+                //PORTBbits.RB5 = 1;
+                PORTDbits.RD4=1;
+                //PORTDbits.RD4=!PORTDbits.RD4;
+            }
+            else{
+                //SetDCPWM2(1);
+                PORTDbits.RD4=0;
+            }
+        }
+
+        /***************  LUCES * ********/
         if (control_luces_auto == 1){
             if (LuzcuentaSegundos >= refreshTime){
                 luces_automaticas();
@@ -276,11 +401,15 @@ void init(void){
 
     // ADC
     TRISBbits.TRISB1 = 1; // RB1 (Canal 8 ADC) INPUT
+
     ADCON0bits.ADON = 0; // Apagado al configurar
     ADCON1 = 0b00000000; // all ports to analogs
-    ADCON0bits.CHS = 8; // CH AN10
+    ADCON0bits.CHS = 8; // CH AN8
     ADCON2 = 0b10100000; // Acquisition time and fclk
     ADCON0bits.ADON = 1; // Encendido
+
+
+    TRISBbits.TRISB0 = 1; // RB0 (Canal 10 ADC) INPUT
 
     // Interrupción Timer 1
     INTCON = 0xC0;
@@ -288,6 +417,7 @@ void init(void){
     T1GCON = 0x00;
     PIE1bits.TMR1IE = 1;
     SetTimer1(62500); //250ms = (8Mhz/32)^-1*62500
+    TRISDbits.TRISD4=0;
 }
 
 void SendMessage (char* Msg ){
@@ -327,7 +457,16 @@ void luces_automaticas(void){
             LuzcuentaInt = 0;
             LuzcuentaSegundos = 0;
 
-            Delay100TCYx(10);
+
+
+            ADCON0bits.ADON = 0; // Apagado al configurar
+            ADCON1 = 0b00000000; // all ports to analogs
+            ADCON0bits.CHS = 10; // CH AN8
+            ADCON2 = 0b10100000; // Acquisition time and fclk
+            ADCON0bits.ADON = 1; // Encendido
+
+           Delay100TCYx(10);
+
             ConvertADC();
             while(BusyADC());
             lecturaADC = ReadADC();
@@ -351,7 +490,7 @@ void luces_automaticas(void){
                     mensaje.destIDH = TSIDH;
                     mensaje.destIDL = TSIDL;
                     mensaje.destino = TSIDL;
-                    mensaje.type = EVENT;
+                    mensaje.type = READ;
                     mensaje.seq_number = seqnumber;
                     mensaje.variable = INST_LIGHT_CONTROL;
                     mensaje.byteH = 0x00;
@@ -374,7 +513,7 @@ void luces_automaticas(void){
                     mensaje.destIDH = TSIDH;
                     mensaje.destIDL = TSIDL;
                     mensaje.destino = TSIDL;
-                    mensaje.type = EVENT;
+                    mensaje.type = READ;
                     mensaje.seq_number = seqnumber;
                     mensaje.variable = INST_LIGHT_CONTROL;
                     mensaje.byteH = 0x00;
@@ -402,4 +541,36 @@ void luces_automaticas(void){
 //            sprintf(msg, "txb0d2:%d\n", TXB0D2);
 //            SendMessage(msg);
 
+}
+
+
+int read_sensor(void){
+
+    int lecturaADC;
+
+            ADCON0bits.ADON = 0; // Apagado al configurar
+            ADCON1 = 0b00000000; // all ports to analogs
+            ADCON0bits.CHS = 8; // CH AN8
+            ADCON2 = 0b10100000; // Acquisition time and fclk
+            ADCON0bits.ADON = 1; // Encendido
+            
+            Delay10TCYx(1);
+            ConvertADC();
+            while(BusyADC());
+            lecturaADC = ReadADC();
+
+     return lecturaADC;
+}
+
+
+void delayms(int tiempo){                       // delays en ms a 8MHz ORIGINAL
+                                            // como yo estoy a 16 MHz tiempo x2
+
+    int tiempo_16MHz = 2* tiempo;
+    int cuenta_ = 0;
+    while ( cuenta_ < tiempo_16MHz )
+    {
+            Delay1KTCYx(2);
+            cuenta_++;
+    }
 }

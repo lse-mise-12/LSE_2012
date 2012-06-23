@@ -74,28 +74,28 @@ void init_canport(void){
 
     RXF1EIDH = 0x00;
     RXF1EIDL = 0x00;
-    RXF1SIDH = 0x00;
-    RXF1SIDL = 0x00;
+    RXF1SIDH = MYIDHIGH;
+    RXF1SIDL = MYIDLOW;
 
     RXF2EIDH = 0x00;
     RXF2EIDL = 0x00;
-    RXF2SIDH = 0x00;
-    RXF2SIDL = 0x00;
+    RXF2SIDH = 0xFF;
+    RXF2SIDL = 0xE0;
 
     RXF3EIDH = 0x00;
     RXF3EIDL = 0x00;
-    RXF3SIDH = 0x00;
-    RXF3SIDL = 0x00;
+    RXF3SIDH = 0xFF;
+    RXF3SIDL = 0xE0;
 
     RXF4EIDH = 0x00;
     RXF4EIDL = 0x00;
-    RXF4SIDH = 0x00;
-    RXF4SIDL = 0x00;
+    RXF4SIDH = 0xFF;
+    RXF4SIDL = 0xE0;
 
     RXF5EIDH = 0x00;
     RXF5EIDL = 0x00;
-    RXF5SIDH = 0x00;
-    RXF5SIDL = 0x00;
+    RXF5SIDH = 0xFF;
+    RXF5SIDL = 0xE0;
 
     // Initialize Receive Masks
     RXM0EIDH = 0x00;      //
@@ -131,9 +131,9 @@ void init_canport(void){
     //01 = Receive only valid messages with standard identifier; EXIDEN in RXFnSIDL must be ?0?
     //00 = Receive all valid messages as per the EXIDEN bit in the RXFnSIDL register
     RXB0CONbits.RXM0 = 1;//RXB0CON = 0x00;
-    RXB0CONbits.RXM1 = 1;//RXB1CON = 0x00;
+    RXB0CONbits.RXM1 = 0;//RXB1CON = 0x00;
     RXB1CONbits.RXM0 = 1;//RXB0CON = 0x00;
-    RXB1CONbits.RXM1 = 1;//RXB1CON = 0x00;
+    RXB1CONbits.RXM1 = 0;//RXB1CON = 0x00;
 
     PIE5bits.RXB0IE = 1;
     PIE5bits.RXB1IE = 1;
@@ -165,7 +165,7 @@ void ECAN_Transmit(struct CAN_mesg mensaje, int selec){
     TXB0DLC = 0x08; //tamaño 1 bytes
 
     TXB0D7 = 0x0A;  // versión de protocolo CAN
-    TXB0D6 = mensaje.destino; // comando de destino
+    TXB0D6 = 0x04;//mensaje.destino; // comando de destino
     TXB0D5 = mensaje.type; // Tipo de comando
     TXB0D4 = mensaje.seq_number;
     TXB0D3 = mensaje.variable;  // Numero de variable

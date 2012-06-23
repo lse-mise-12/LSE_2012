@@ -8,7 +8,7 @@ CFLAGS_D = -Wall -Wstrict-prototypes -Wno-trigraphs -O2 \
          -mcpu=arm920t 
 
 # quitada optimizacion -O2 (para debug)
-CFLAGS = -Wall -Wstrict-prototypes -Wno-trigraphs -fno-strict-aliasing -fno-common -fomit-frame-pointer -mcpu=arm920t -Wno-format-y2k -g -pthread
+CFLAGS = -Wall -Wstrict-prototypes -Wno-trigraphs -fno-strict-aliasing -fno-common -fomit-frame-pointer -mcpu=arm920t -Wno-format-y2k -g -pthread -D_DEBUG_
 
 all: main spi
 main:
